@@ -1,0 +1,37 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.ipynb_checkpoints/
+
+# Virtual environments (the local EDA venv is ~292MB — never commit)
+.venv-eda/
+.venv/
+venv/
+env/
+
+# Secrets / API keys (OpenAI judge key wired in later, never committed)
+.env
+*.key
+secrets.*
+
+AI_CONTEXT.md
+
+# Editor / OS
+.idea/
+.vscode/
+.DS_Store
+
+# Claude Code local session settings (machine-specific)
+.claude/
+
+# Large/derived data — cache locally, regenerate on demand
+data/
+*.faiss
+*.index
+# HuggingFace datasets cache, if ever placed in-repo
+.cache/
+
+# Notebook-generated artifacts that aren't deliverables
+ragbench_schema.json
+ragbench_*.csv

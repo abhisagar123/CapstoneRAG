@@ -1,0 +1,13 @@
+domain,config,n,relevance_rmse,relevance_max_gap,relevance_exact,utilization_rmse,utilization_max_gap,utilization_exact,completeness_rmse,completeness_max_gap,completeness_exact,adherence_accuracy
+Biomedical,pubmedqa,300,0.000e+00,0.000e+00,300,0.000e+00,0.000e+00,300,0.000e+00,0.000e+00,300,1.0000
+Biomedical,covidqa,246,0.000e+00,0.000e+00,246,0.000e+00,0.000e+00,246,0.000e+00,0.000e+00,246,1.0000
+GenKnowledge,hotpotqa,300,0.000e+00,0.000e+00,300,0.000e+00,0.000e+00,300,0.000e+00,0.000e+00,300,1.0000
+GenKnowledge,msmarco,300,0.000e+00,0.000e+00,300,0.000e+00,0.000e+00,300,0.000e+00,0.000e+00,300,1.0000
+GenKnowledge,hagrid,300,0.000e+00,0.000e+00,300,0.000e+00,0.000e+00,300,0.000e+00,0.000e+00,300,1.0000
+GenKnowledge,expertqa,203,0.000e+00,0.000e+00,203,0.000e+00,0.000e+00,203,0.000e+00,0.000e+00,203,1.0000
+Legal,cuad,300,0.000e+00,0.000e+00,300,0.000e+00,0.000e+00,300,0.000e+00,0.000e+00,300,1.0000
+CustomerSupport,techqa,300,0.000e+00,0.000e+00,300,0.000e+00,0.000e+00,300,0.000e+00,0.000e+00,300,1.0000
+CustomerSupport,emanual,132,0.000e+00,0.000e+00,132,0.000e+00,0.000e+00,132,0.000e+00,0.000e+00,132,1.0000
+CustomerSupport,delucionqa,184,0.000e+00,0.000e+00,184,0.000e+00,0.000e+00,184,0.000e+00,0.000e+00,184,1.0000
+Finance,finqa,300,0.000e+00,0.000e+00,300,0.000e+00,0.000e+00,300,0.000e+00,0.000e+00,300,1.0000
+Finance,tatqa,300,0.000e+00,0.000e+00,300,0.000e+00,0.000e+00,300,0.000e+00,0.000e+00,300,1.0000
