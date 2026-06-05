@@ -1,0 +1,34 @@
+# CapstoneRAG — Python dependencies
+#
+# This file is split by project phase so you only install what you need.
+# Heavy GPU libraries (torch, sentence-transformers, bitsandbytes, ...) are
+# intentionally NOT pinned here yet — they arrive when we build the retrieval
+# and generation pipeline (Phase 1c / Phase 2) and are best installed on Colab.
+#
+# Versions below are the ones validated locally (Python 3.12) on 2026-06-05.
+
+# --- Phase 0–1a: data loading + the TRACe evaluator (math half) ---
+# Enough to run notebooks/01_eda.ipynb and notebooks/02_evaluator_validation.ipynb.
+datasets==4.8.5
+pandas==3.0.3
+pyarrow==24.0.0
+numpy==2.4.6
+
+# --- Phase 1b: the LLM-judge half of the evaluator (added when we build it) ---
+# openai>=1.0            # judge-only (allowed closed model); needs OPENAI_API_KEY
+
+# --- Phase 2: RAG pipeline (added later, Colab/GPU) ---
+# sentence-transformers
+# transformers
+# torch
+# rank-bm25
+# chromadb
+# faiss-cpu
+# bitsandbytes
+# accelerate
+
+# --- Phase 4: demo ---
+# gradio
+
+# --- viz (optional, used in EDA) ---
+matplotlib
