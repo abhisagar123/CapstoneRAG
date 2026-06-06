@@ -116,7 +116,7 @@ flowchart LR
 | **Retriever** | Dense / sparse / hybrid (RRF) candidate retrieval | ✅ **built** (brick 4; dense — sparse/hybrid later) |
 | **Reranker** | Re-order candidates (cross-encoder / monoT5) | ✅ **built** (brick 5; cross-encoder + noop) |
 | **Repacker** | Order chunks in the prompt (forward / reverse / sides) | ✅ **built** (brick 5) |
-| **PromptBuilder** | Assemble the grounding prompt (biggest Adherence lever) | planned (brick 6) |
+| **PromptBuilder** | Assemble the grounding prompt (biggest Adherence lever) | ✅ **built** (brick 6; grounded + minimal) |
 | **Generator** | Open-source LLM answer generation (4-bit on Colab) | planned (brick 7) |
 | **OutputSegmenter** | Split our context+answer into keyed sentences for the judge | planned (brick 8) |
 | **Pipeline + Runner** | Assemble components from config; loop configs × domains | planned (brick 9) |
