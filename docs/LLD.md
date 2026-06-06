@@ -20,6 +20,9 @@ src/
 │   ├── noop_chunker.py   #   NoOpChunker (no-chunking) [type "none"]
 │   └── __init__.py       #   re-exports + imports each strategy so it registers
 ├── embeddings/           # Embedder interface + one file per model impl
+│   ├── base.py           #   Embedder interface
+│   ├── sentence_transformer_embedder.py  # any sentence-transformers model [types "sentence_transformer"/"minilm"]
+│   └── __init__.py       #   load_embedders() lazily registers (keeps torch out of `import src`)
 ├── indexer.py            # Index interface (per-example | pooled corpus)
 ├── retriever/            # Retriever: dense / sparse / hybrid (RRF) — one file per impl
 ├── reranker/             # Reranker: cross-encoder / monoT5 — one file per impl
