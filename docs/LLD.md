@@ -23,9 +23,14 @@ src/
 │   ├── base.py           #   Embedder interface
 │   ├── sentence_transformer_embedder.py  # any sentence-transformers model [types "sentence_transformer"/"minilm"]
 │   └── __init__.py       #   load_embedders() lazily registers (keeps torch out of `import src`)
-├── indexer.py            # ✅ FaissIndex (exact IP) + RetrievedChunk; per-example | pooled mode [type "faiss"]
-├── retriever.py          # ✅ DenseRetriever (text→nearest chunks) [type "dense"]; sparse/hybrid later
-│                         #    (becomes retriever/ package when 2nd strategy lands)
+├── indexing/             # ✅ Index backends (package, per convention)
+│   ├── base.py           #   Index interface + RetrievedChunk result type
+│   ├── faiss_index.py    #   FaissIndex (exact IP); per-example | pooled mode [type "faiss"]
+│   └── __init__.py       #   re-exports + registers (faiss imported lazily → light)
+├── retrieval/            # ✅ Retriever strategies (package, per convention)
+│   ├── base.py           #   Retriever interface
+│   ├── dense_retriever.py #  DenseRetriever (text→nearest chunks) [type "dense"]
+│   └── __init__.py       #   re-exports + registers; sparse/hybrid = sibling files later
 ├── reranker/             # Reranker: cross-encoder / monoT5 — one file per impl
 ├── repacker.py           # Repacker: forward / reverse / sides
 ├── prompt.py             # PromptBuilder: grounding prompt templates
@@ -46,9 +51,12 @@ src/
 ```
 
 > **Convention — one file per strategy for multi-implementation components.** Any component expected to
-> grow several swappable strategies (chunker, embedder, retriever, reranker) is a *package*: a `base.py`
-> holding the shared interface + data structures, one file per concrete strategy, and an `__init__.py` that
-> re-exports the contract and imports each strategy file so its `@register` decorator runs. Benefits:
+> grow several swappable strategies (chunker, embedder, index, retriever, reranker) is a *package* **from the
+> start — even when only one implementation exists yet** (don't defer it to "when the 2nd strategy lands"): a
+> `base.py` holding the shared interface + data structures, one file per concrete strategy, and an `__init__.py`
+> that re-exports the contract and imports each strategy file so its `@register` decorator runs. Every such
+> component MUST define its interface in `base.py` (e.g. `Index`, `Retriever`) — an implementation without a
+> declared interface is a convention violation. Benefits:
 > teammates add a strategy by dropping in a new file + one import line (no merge conflicts on a shared file),
 > and each strategy is self-contained and readable. **File naming:** descriptive snake_case carrying the
 > component noun — `fixed_chunker.py`, `noop_chunker.py`, later `pgc_chunker.py` (PEP 8: modules lowercase;

@@ -1,39 +1,25 @@
-"""Index — stores chunk vectors and finds the nearest ones to a query vector.
-
-This is the storage+search half of retrieval. Chunks are embedded once (offline)
-and added here; at query time we ask for the k nearest stored vectors to a query
-vector. "Nearest" = highest inner product, which — because our embedder returns
-L2-normalized vectors — equals cosine similarity (see brick 3 `normalize=True`).
+"""FaissIndex — exact inner-product vector index backed by FAISS.
 
 Backend: FAISS `IndexFlatIP` = a FLAT (exact, brute-force) inner-product index.
 At our scale (≤ tens of thousands of chunks per domain) exact search is fast and
 needs no approximation. FAISS stores only vectors + integer ids, so we keep the
 Chunk objects in a parallel list and map ids → chunks ourselves.
 
-Single implementation for now (FAISS), so this stays a flat file; a Chroma/Milvus
-backend can be added later as another registered "index" strategy.
+Registered as index type "faiss". faiss is imported lazily (only when an index
+is actually constructed), so it is not pulled in by light package imports.
 """
 
-from dataclasses import dataclass
-
-from .registry import register
-from .chunking import Chunk
-
-
-@dataclass(frozen=True)
-class RetrievedChunk:
-    """A chunk returned by search, with its similarity score and rank (0 = best)."""
-    chunk: Chunk
-    score: float
-    rank: int
+from ..registry import register
+from ..chunking import Chunk
+from .base import RetrievedChunk
 
 
 @register("index", "faiss")
 class FaissIndex:
     """Exact inner-product vector index over chunks.
 
-    corpus_mode is metadata only here (the caller decides what chunks to add);
-    we store it so the pipeline/retriever can record which setting produced a run.
+    `corpus_mode` is recorded metadata (the caller decides which chunks to add);
+    it lets a run record which setting produced it:
         "per_example" → only one question's documents were added
         "pooled"      → a whole domain's documents were added
     """

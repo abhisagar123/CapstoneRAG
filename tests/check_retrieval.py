@@ -17,8 +17,8 @@ import numpy as np
 
 import src  # noqa: F401
 from src.registry import build, available
-from src.indexer import FaissIndex, RetrievedChunk
-from src.retriever import DenseRetriever, Retriever
+from src.indexing import FaissIndex, RetrievedChunk
+from src.retrieval import DenseRetriever, Retriever
 from src.chunking import Chunk
 
 WANT_MODEL = os.environ.get("MODEL") == "1"

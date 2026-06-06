@@ -42,8 +42,8 @@ src/
   registry.py      # swap components by config string (@register + build factory)
   chunking/        # Chunker interface + strategies (fixed, noop) — one file each
   embeddings/      # Embedder interface + sentence-transformers impl (lazy-loaded)
-  indexer.py       # FAISS vector index (exact search); per-example or pooled corpus
-  retriever.py     # dense retriever: question → nearest chunks (search by meaning)
+  indexing/        # Index interface + FAISS backend (exact search); per-example or pooled
+  retrieval/       # Retriever interface + dense retriever: question → nearest chunks
   evaluator/
     trace.py       # the 4 TRACe metrics (relevance, utilization, completeness, adherence)
     validate.py    # validates trace.py against RAGBench reference scores (RMSE / accuracy)
