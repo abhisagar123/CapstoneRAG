@@ -17,15 +17,15 @@ numpy==2.4.6
 # --- Phase 1b: the LLM-judge half of the evaluator (added when we build it) ---
 # openai>=1.0            # judge-only (allowed closed model); needs OPENAI_API_KEY
 
-# --- Phase 2: RAG pipeline (added later, Colab/GPU) ---
-# sentence-transformers
-# transformers
-# torch
-# rank-bm25
-# chromadb
-# faiss-cpu
-# bitsandbytes
-# accelerate
+# --- Phase 2: RAG pipeline ---
+# Embedder (brick 3): runs on CPU locally with a small model (all-MiniLM, ~90MB).
+# torch is pulled in as a sentence-transformers dependency.
+sentence-transformers>=2.2
+
+# Added as later bricks need them:
+# rank-bm25          # sparse retrieval (brick 4)
+# chromadb / faiss-cpu  # vector index (brick 4)
+# transformers bitsandbytes accelerate  # generator (brick 7, Colab/GPU)
 
 # --- Phase 4: demo ---
 # gradio
