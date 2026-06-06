@@ -80,6 +80,21 @@ def test_registry_swap_by_string():
     assert isinstance(fixed, Chunker) and isinstance(none, Chunker)
 
 
+def test_swap_changes_behavior_not_just_type():
+    # The full swap claim: identical calling code + different config string ->
+    # genuinely different chunking behavior on the SAME input.
+    doc = " ".join(f"w{i}" for i in range(1000))    # one 1000-word document
+    results = {}
+    for type_name, params in [("fixed", {"size": 200, "overlap": 20}),
+                              ("fixed", {"size": 500, "overlap": 50}),
+                              ("none", {})]:
+        chunker = build("chunker", type_name, params)   # <- identical calling code
+        results[(type_name, params.get("size"))] = len(chunker.chunk([doc]))
+    # smaller window -> more chunks; none -> exactly 1 (whole doc)
+    assert results[("fixed", 200)] > results[("fixed", 500)] > results[("none", None)]
+    assert results[("none", None)] == 1
+
+
 def test_registry_unknown_type_errors():
     try:
         build("chunker", "does-not-exist")
