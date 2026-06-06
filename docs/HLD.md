@@ -112,8 +112,8 @@ flowchart LR
 | **Chunker** | Slice documents into retrievable pieces | ✅ **built** (brick 2; fixed + noop) |
 | **Registry** | Swap components by config string (`@register` + `build`) | ✅ **built** (brick 2) |
 | **Embedder** | Encode text → dense vectors | ✅ **built** (brick 3; sentence-transformers) |
-| **Index** | Store/search vectors; **per-example or pooled-corpus** mode | planned (brick 4, next) |
-| **Retriever** | Dense / sparse / hybrid (RRF) candidate retrieval | planned (brick 4) |
+| **Index** | Store/search vectors; **per-example or pooled-corpus** mode | ✅ **built** (brick 4; FAISS exact) |
+| **Retriever** | Dense / sparse / hybrid (RRF) candidate retrieval | ✅ **built** (brick 4; dense — sparse/hybrid later) |
 | **Reranker** | Re-order candidates (cross-encoder / monoT5) | planned (brick 5) |
 | **Repacker** | Order chunks in the prompt (forward / reverse / sides) | planned (brick 5) |
 | **PromptBuilder** | Assemble the grounding prompt (biggest Adherence lever) | planned (brick 6) |
