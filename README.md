@@ -27,7 +27,7 @@ ready-made library.
 | 4 | Gradio demo + report | ⬜ |
 
 **RAG pipeline bricks** (built one at a time, each tested): data loader ✅ · chunker + registry ✅ ·
-embedder ✅ · index + retriever ✅ (FAISS dense) · reranker + repacker ⬜ (next) · prompt builder ⬜ ·
+embedder ✅ · index + retriever ✅ (FAISS dense) · reranker + repacker ✅ · prompt builder ⬜ (next) ·
 generator ⬜ · output segmenter ⬜ · pipeline wiring + experiment runner ⬜.
 
 **Validated so far:** our TRACe metric implementation reproduces RAGBench's shipped reference
@@ -44,6 +44,8 @@ src/
   embeddings/      # Embedder interface + sentence-transformers impl (lazy-loaded)
   indexing/        # Index interface + FAISS backend (exact search); per-example or pooled
   retrieval/       # Retriever interface + dense retriever: question → nearest chunks
+  reranking/       # Reranker interface + cross-encoder (accurate re-score) + noop
+  repacking/       # Repacker interface + chunk-ordering strategies (forward/reverse/sides)
   evaluator/
     trace.py       # the 4 TRACe metrics (relevance, utilization, completeness, adherence)
     validate.py    # validates trace.py against RAGBench reference scores (RMSE / accuracy)
