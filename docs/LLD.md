@@ -36,9 +36,11 @@ src/
 │   ├── noop_reranker.py  #   NoOpReranker [type "none"] — light control arm
 │   ├── cross_encoder_reranker.py  # CrossEncoderReranker [type "cross_encoder"] — heavy (torch)
 │   └── __init__.py       #   registers noop on import; load_rerankers() for the cross-encoder
-├── repacking/            # ✅ Repacker strategies (package)
+├── repacking/            # ✅ Repacker strategies (package, one file per strategy)
 │   ├── base.py           #   Repacker interface
-│   ├── order_repackers.py #  Forward/Reverse/Sides [types "forward"/"reverse"/"sides"]
+│   ├── forward_repacker.py #  ForwardRepacker [type "forward"]
+│   ├── reverse_repacker.py #  ReverseRepacker [type "reverse"]
+│   ├── sides_repacker.py  #  SidesRepacker   [type "sides"]
 │   └── __init__.py       #   re-exports + registers (pure Python, light)
 ├── prompt.py             # PromptBuilder: grounding prompt templates
 ├── generator.py          # Generator: open-source LLM (+ StubGenerator for local)
