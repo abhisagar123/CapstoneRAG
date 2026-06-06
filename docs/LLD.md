@@ -23,8 +23,9 @@ src/
 │   ├── base.py           #   Embedder interface
 │   ├── sentence_transformer_embedder.py  # any sentence-transformers model [types "sentence_transformer"/"minilm"]
 │   └── __init__.py       #   load_embedders() lazily registers (keeps torch out of `import src`)
-├── indexer.py            # Index interface (per-example | pooled corpus)
-├── retriever/            # Retriever: dense / sparse / hybrid (RRF) — one file per impl
+├── indexer.py            # ✅ FaissIndex (exact IP) + RetrievedChunk; per-example | pooled mode [type "faiss"]
+├── retriever.py          # ✅ DenseRetriever (text→nearest chunks) [type "dense"]; sparse/hybrid later
+│                         #    (becomes retriever/ package when 2nd strategy lands)
 ├── reranker/             # Reranker: cross-encoder / monoT5 — one file per impl
 ├── repacker.py           # Repacker: forward / reverse / sides
 ├── prompt.py             # PromptBuilder: grounding prompt templates

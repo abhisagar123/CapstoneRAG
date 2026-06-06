@@ -22,9 +22,12 @@ numpy==2.4.6
 # torch is pulled in as a sentence-transformers dependency.
 sentence-transformers>=2.2
 
+# Vector index (brick 4): exact inner-product search; fine on CPU at our scale.
+faiss-cpu>=1.7
+
 # Added as later bricks need them:
-# rank-bm25          # sparse retrieval (brick 4)
-# chromadb / faiss-cpu  # vector index (brick 4)
+# rank-bm25          # sparse retrieval (later: hybrid retriever)
+# chromadb           # alternative index backend (experimentation phase)
 # transformers bitsandbytes accelerate  # generator (brick 7, Colab/GPU)
 
 # --- Phase 4: demo ---
