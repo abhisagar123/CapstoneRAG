@@ -41,9 +41,9 @@ notebooks/
   02_evaluator_validation.ipynb # proves the math-half evaluator reproduces reference scores
 results/
   evaluator_validation.csv      # the validation report card
-AI_CONTEXT.md    # detailed living handoff doc (decisions, dataset facts, findings)
-PROJECT_PLAN.md  # phase-by-phase execution plan
-*.pdf            # the 3 core + 1 supplementary reference papers
+docs/
+  PROJECT_PLAN.md               # phase-by-phase execution plan
+papers/                         # the 3 core + 1 supplementary reference papers (PDFs)
 ```
 
 ## Quickstart
