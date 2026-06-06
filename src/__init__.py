@@ -11,6 +11,8 @@ the rule simple). indexing/ imports faiss lazily inside FaissIndex.__init__, so
 importing the package is light and safe here.
 """
 
-from . import chunking  # noqa: F401  — registers FixedChunker, NoOpChunker
-from . import indexing   # noqa: F401  — registers FaissIndex (faiss import is lazy)
-from . import retrieval  # noqa: F401  — registers DenseRetriever
+from . import chunking   # noqa: F401  — registers FixedChunker, NoOpChunker
+from . import indexing    # noqa: F401  — registers FaissIndex (faiss import is lazy)
+from . import retrieval   # noqa: F401  — registers DenseRetriever
+from . import repacking   # noqa: F401  — registers forward / reverse / sides (pure Python)
+from . import reranking    # noqa: F401  — registers NoOpReranker; CrossEncoder gated behind load_rerankers()
