@@ -14,11 +14,15 @@
 ```
 src/
 ├── data_loader.py        # load_domain(); domain → config map; sampling
-├── chunking.py           # Chunker interface + FixedChunker (baseline)
-├── embeddings.py         # Embedder interface + sentence-transformers impl
+├── chunking/             # one file per strategy (CONVENTION for multi-impl components)
+│   ├── base.py           #   Chunk dataclass + Chunker interface + helpers
+│   ├── fixed_chunker.py  #   FixedChunker (baseline)  [type "fixed"]
+│   ├── noop_chunker.py   #   NoOpChunker (no-chunking) [type "none"]
+│   └── __init__.py       #   re-exports + imports each strategy so it registers
+├── embeddings/           # Embedder interface + one file per model impl
 ├── indexer.py            # Index interface (per-example | pooled corpus)
-├── retriever.py          # Retriever: dense / sparse / hybrid (RRF)
-├── reranker.py           # Reranker: cross-encoder / monoT5
+├── retriever/            # Retriever: dense / sparse / hybrid (RRF) — one file per impl
+├── reranker/             # Reranker: cross-encoder / monoT5 — one file per impl
 ├── repacker.py           # Repacker: forward / reverse / sides
 ├── prompt.py             # PromptBuilder: grounding prompt templates
 ├── generator.py          # Generator: open-source LLM (+ StubGenerator for local)
@@ -36,6 +40,17 @@ src/
     ├── judge.py          # LLM judge (deferred; needs key)
     └── rgb.py            # RGB 4-ability metrics (Phase 3)
 ```
+
+> **Convention — one file per strategy for multi-implementation components.** Any component expected to
+> grow several swappable strategies (chunker, embedder, retriever, reranker) is a *package*: a `base.py`
+> holding the shared interface + data structures, one file per concrete strategy, and an `__init__.py` that
+> re-exports the contract and imports each strategy file so its `@register` decorator runs. Benefits:
+> teammates add a strategy by dropping in a new file + one import line (no merge conflicts on a shared file),
+> and each strategy is self-contained and readable. **File naming:** descriptive snake_case carrying the
+> component noun — `fixed_chunker.py`, `noop_chunker.py`, later `pgc_chunker.py` (PEP 8: modules lowercase;
+> NOT `FixedChunker.py`). Single-implementation components (e.g. `data_loader.py`, `repacker.py`) stay flat
+> files until they need to grow. ⚠️ The `__init__.py` imports are **required** — a
+> strategy whose file is never imported never registers (decorators only run on import).
 
 ## 2. Core data structures
 
