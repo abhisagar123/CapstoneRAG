@@ -108,17 +108,18 @@ flowchart LR
 
 | Component | Responsibility | Status |
 |---|---|---|
-| **Data loader** | Load a RAGBench domain/split; map domain → config; optional sampling | planned (next) |
-| **Chunker** | Slice documents into retrievable pieces | planned (fixed baseline) |
-| **Embedder** | Encode text → dense vectors | planned |
-| **Index** | Store/search vectors; **per-example or pooled-corpus** mode | planned |
-| **Retriever** | Dense / sparse / hybrid (RRF) candidate retrieval | planned |
-| **Reranker** | Re-order candidates (cross-encoder / monoT5) | planned |
-| **Repacker** | Order chunks in the prompt (forward / reverse / sides) | planned |
-| **PromptBuilder** | Assemble the grounding prompt (biggest Adherence lever) | planned |
-| **Generator** | Open-source LLM answer generation (4-bit on Colab) | planned |
-| **OutputSegmenter** | Split our context+answer into keyed sentences for the judge | planned |
-| **Pipeline + Registry + Runner** | Assemble components from config; loop configs × domains | planned |
+| **Data loader** | Load a RAGBench domain/split; map domain → config; optional sampling | ✅ **built** (brick 1) |
+| **Chunker** | Slice documents into retrievable pieces | ✅ **built** (brick 2; fixed + noop) |
+| **Registry** | Swap components by config string (`@register` + `build`) | ✅ **built** (brick 2) |
+| **Embedder** | Encode text → dense vectors | ✅ **built** (brick 3; sentence-transformers) |
+| **Index** | Store/search vectors; **per-example or pooled-corpus** mode | planned (brick 4, next) |
+| **Retriever** | Dense / sparse / hybrid (RRF) candidate retrieval | planned (brick 4) |
+| **Reranker** | Re-order candidates (cross-encoder / monoT5) | planned (brick 5) |
+| **Repacker** | Order chunks in the prompt (forward / reverse / sides) | planned (brick 5) |
+| **PromptBuilder** | Assemble the grounding prompt (biggest Adherence lever) | planned (brick 6) |
+| **Generator** | Open-source LLM answer generation (4-bit on Colab) | planned (brick 7) |
+| **OutputSegmenter** | Split our context+answer into keyed sentences for the judge | planned (brick 8) |
+| **Pipeline + Runner** | Assemble components from config; loop configs × domains | planned (brick 9) |
 | **TRACe math** | The 4 metrics from sentence labels | ✅ **built & validated** |
 | **TRACe judge** | Produce R/U/support labels for our pipeline's answers | deferred (needs key) |
 | **RGB evaluator** | The 4 robustness-ability metrics | planned (Phase 3) |
