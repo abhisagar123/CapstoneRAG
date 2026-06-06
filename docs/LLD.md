@@ -42,7 +42,11 @@ src/
 │   ├── reverse_repacker.py #  ReverseRepacker [type "reverse"]
 │   ├── sides_repacker.py  #  SidesRepacker   [type "sides"]
 │   └── __init__.py       #   re-exports + registers (pure Python, light)
-├── prompt.py             # PromptBuilder: grounding prompt templates
+├── prompting/            # ✅ PromptBuilder strategies (package)
+│   ├── base.py           #   PromptBuilder interface + format_chunks() helper
+│   ├── grounded_prompt_builder.py  # GroundedPromptBuilder [type "grounded"] — baseline
+│   ├── minimal_prompt_builder.py   # MinimalPromptBuilder  [type "minimal"]  — contrast arm
+│   └── __init__.py       #   re-exports + registers (pure Python, light)
 ├── generator.py          # Generator: open-source LLM (+ StubGenerator for local)
 ├── segment.py            # OutputSegmenter: context+answer → keyed sentences
 ├── query.py              # (optional) QueryTransform: HyDE / decomposition

@@ -16,3 +16,4 @@ from . import indexing    # noqa: F401  — registers FaissIndex (faiss import i
 from . import retrieval   # noqa: F401  — registers DenseRetriever
 from . import repacking   # noqa: F401  — registers forward / reverse / sides (pure Python)
 from . import reranking    # noqa: F401  — registers NoOpReranker; CrossEncoder gated behind load_rerankers()
+from . import prompting    # noqa: F401  — registers grounded / minimal prompt builders (pure Python)
