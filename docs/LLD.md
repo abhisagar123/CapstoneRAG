@@ -52,7 +52,11 @@ src/
 │   ├── echo_generator.py #   EchoGenerator [type "echo"] — light, no model (tests/wiring)
 │   ├── hf_generator.py   #   HuggingFaceGenerator [type "hf"] — real LLM, heavy, COLAB
 │   └── __init__.py       #   registers echo on import; load_generators() for hf
-├── segment.py            # OutputSegmenter: context+answer → keyed sentences
+├── segmentation/         # ✅ pipeline→evaluator bridge (package)
+│   ├── base.py           #   SentenceSplitter interface + OutputSegmenter (RAGBench keyer)
+│   ├── regex_splitter.py #   RegexSplitter [type "regex"] — baseline, no deps
+│   ├── nltk_splitter.py  #   NltkSplitter  [type "nltk"]  — punkt; via load_nltk_splitter()
+│   └── __init__.py       #   registers regex on import; load_nltk_splitter() for nltk
 ├── query.py              # (optional) QueryTransform: HyDE / decomposition
 ├── summarizer.py         # (optional) Summarizer: context compression
 ├── registry.py           # type-string → class registry + @register decorator

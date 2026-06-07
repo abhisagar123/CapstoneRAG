@@ -32,6 +32,10 @@ transformers>=4.44
 # bitsandbytes   # Colab only — 4-bit quantization for the generator
 # accelerate     # Colab only — device_map for large models
 
+# OutputSegmenter (brick 8): NLTK punkt sentence splitter (a tokenizer, not a
+# model — runs locally). First use downloads the small punkt/punkt_tab data.
+nltk>=3.8
+
 # Added as later bricks need them:
 # rank-bm25          # sparse retrieval (later: hybrid retriever)
 # chromadb           # alternative index backend (experimentation phase)
