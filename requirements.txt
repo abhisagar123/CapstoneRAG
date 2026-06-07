@@ -36,6 +36,9 @@ transformers>=4.44
 # model — runs locally). First use downloads the small punkt/punkt_tab data.
 nltk>=3.8
 
+# Pipeline config (brick 9): YAML experiment configs.
+pyyaml>=6.0
+
 # Added as later bricks need them:
 # rank-bm25          # sparse retrieval (later: hybrid retriever)
 # chromadb           # alternative index backend (experimentation phase)

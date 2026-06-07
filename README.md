@@ -28,7 +28,11 @@ ready-made library.
 
 **RAG pipeline bricks** (built one at a time, each tested): data loader ✅ · chunker + registry ✅ ·
 embedder ✅ · index + retriever ✅ (FAISS dense) · reranker + repacker ✅ · prompt builder ✅ ·
-generator ✅ (hf for Colab + echo for tests) · output segmenter ✅ (regex + nltk) · pipeline wiring + experiment runner ⬜ (next).
+generator ✅ (hf for Colab + echo for tests) · output segmenter ✅ (regex + nltk) · pipeline wiring + experiment runner ✅.
+
+**🎉 The RAG pipeline is complete** — a config (YAML) assembles all components and `run_matrix()` runs
+configs × domains into a resumable results CSV. Remaining: the TRACe **judge** (strong OSS model on Colab,
+then OpenAI when a key is available) to fill in scores, then the RAGBench results matrix + RGB (Task 2) + demo.
 
 > **Note:** per a runtime constraint, all model inference (embedder, reranker, generator) runs on **Google
 > Colab**; the pure-Python stages (loader, chunker, indexing, repacking, prompting, evaluator) and their offline
@@ -53,6 +57,9 @@ src/
   prompting/       # PromptBuilder interface + grounded/minimal prompt variants
   generation/      # Generator interface + HuggingFace LLM (Colab) + echo (tests)
   segmentation/    # SentenceSplitter (regex/nltk) + OutputSegmenter: pipeline→evaluator bridge
+  config.py        # YAML experiment config: load + validate against the registry
+  pipeline.py      # Pipeline: assemble components from a config; index + answer
+  runner.py        # ExperimentRunner: run configs × domains → resumable results CSV
   evaluator/
     trace.py       # the 4 TRACe metrics (relevance, utilization, completeness, adherence)
     validate.py    # validates trace.py against RAGBench reference scores (RMSE / accuracy)

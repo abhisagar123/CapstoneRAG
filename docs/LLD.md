@@ -59,11 +59,11 @@ src/
 │   └── __init__.py       #   registers regex on import; load_nltk_splitter() for nltk
 ├── query.py              # (optional) QueryTransform: HyDE / decomposition
 ├── summarizer.py         # (optional) Summarizer: context compression
-├── registry.py           # type-string → class registry + @register decorator
-├── config_schema.py      # typed schema; validates loaded YAML (fail-fast)
-├── config.py             # load_config(yaml) → validated objects; grid generator
-├── pipeline.py           # Pipeline.answer(): assemble + run the components
-├── runner.py             # ExperimentRunner: loop configs × domains → CSV
+├── registry.py           # ✅ type-string → class registry + @register decorator + build()
+├── config.py             # ✅ StageConfig/PipelineConfig + load_config(yaml) + validate
+│                         #    (schema lives here, in one file; grid generator deferred)
+├── pipeline.py           # ✅ Pipeline: build_pipeline(cfg) assembles; index_documents() + answer()
+├── runner.py             # ✅ ExperimentRunner: run_matrix() loops configs×domains → resumable CSV
 └── evaluator/
     ├── trace.py          # ✅ 4 TRACe metrics from labels (BUILT)
     ├── validate.py       # ✅ validate vs reference scores (BUILT)
@@ -286,6 +286,13 @@ same assembly code handles "ablate this stage OFF".
 **Decision (see HLD §9 / AI_CONTEXT §11.2):** YAML files are the source of truth (declarative,
 git-diffable, double as the demo's per-domain configs). A typed schema validates them on load
 (fail-fast on typos / wrong types), and a generator expands sweeps so we author *2 files, not 50*.
+
+> **AS-BUILT (brick 9, 7 Jun):** implemented in a SINGLE `src/config.py` (the schema dataclasses live
+> there, not a separate `config_schema.py`), with `load_config()` + `from_dict()` + `validate()`. Validation
+> checks each stage's `type` against the registry (catches typos/unknown/missing). The **grid generator
+> (`expand_grid`) is DEFERRED** — the user chose explicit per-experiment YAML files in `configs/` for now;
+> the generator can be added later (the runner consumes config objects either way). The code sketch below is
+> the original design intent; treat `config_schema.py`/`expand_grid` as aspirational, not current.
 
 ```python
 # src/config_schema.py
