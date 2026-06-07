@@ -21,7 +21,7 @@ ready-made library.
 |---|---|---|
 | 0 | Repo, EDA, schema confirmation | ✅ done |
 | 1a | TRACe evaluator — **math half** (the 4 metrics from gold labels) | ✅ done & validated |
-| 1b | TRACe evaluator — **LLM-judge half** (produces labels for our own pipeline) | ⬜ deferred (needs judge key) |
+| 1b | TRACe evaluator — **LLM-judge half** (produces labels for our own pipeline) | ✅ built (OSS judge on Colab; validate next) |
 | 1c–2 | Modular RAG pipeline (built brick by brick) + per-domain ablations | 🚧 in progress |
 | 3 | RGB robustness evaluation | ⬜ |
 | 4 | Gradio demo + report | ⬜ |
@@ -30,9 +30,10 @@ ready-made library.
 embedder ✅ · index + retriever ✅ (FAISS dense) · reranker + repacker ✅ · prompt builder ✅ ·
 generator ✅ (hf for Colab + echo for tests) · output segmenter ✅ (regex + nltk) · pipeline wiring + experiment runner ✅.
 
-**🎉 The RAG pipeline is complete** — a config (YAML) assembles all components and `run_matrix()` runs
-configs × domains into a resumable results CSV. Remaining: the TRACe **judge** (strong OSS model on Colab,
-then OpenAI when a key is available) to fill in scores, then the RAGBench results matrix + RGB (Task 2) + demo.
+**🎉 The RAG pipeline + evaluator are complete** — a config (YAML) assembles all components and `run_matrix()`
+runs configs × domains into a resumable results CSV, and the TRACe **judge** (strong OSS model on Colab via the
+exact RAGBench Appendix-7.4 prompt; OpenAI can drop in later) produces the labels that fill in real scores.
+Remaining: validate the judge vs reference scores → run the RAGBench results matrix → RGB (Task 2) → demo.
 
 > **Note:** per a runtime constraint, all model inference (embedder, reranker, generator) runs on **Google
 > Colab**; the pure-Python stages (loader, chunker, indexing, repacking, prompting, evaluator) and their offline
@@ -60,6 +61,7 @@ src/
   config.py        # YAML experiment config: load + validate against the registry
   pipeline.py      # Pipeline: assemble components from a config; index + answer
   runner.py        # ExperimentRunner: run configs × domains → resumable results CSV
+  judge/           # TRACe judge: Appendix-7.4 prompt → R/U labels (OSS on Colab + fake for tests)
   evaluator/
     trace.py       # the 4 TRACe metrics (relevance, utilization, completeness, adherence)
     validate.py    # validates trace.py against RAGBench reference scores (RMSE / accuracy)
