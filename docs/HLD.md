@@ -36,8 +36,10 @@ The system addresses two tasks:
 2. **A hosted/closed LLM (e.g. OpenAI) is allowed *only* as an evaluation judge** — never for
    generation or retrieval.
 3. **Metrics implemented by us** from the papers' formulas.
-4. **Compute = Google Colab** (free / Pro); design around a single mid-tier GPU. CPU-only work
-   (data, evaluation arithmetic, small embedders) runs locally.
+4. **Compute = Google Colab** (free / Pro); design around a single mid-tier GPU. **All model inference
+   (embedder, reranker, generator) runs on Colab — a runtime constraint means models are not run locally.**
+   Pure-Python work (data loading, chunking, indexing, repacking, prompting, the TRACe arithmetic) and all
+   offline tests run locally; model-dependent checks run on Colab via a runner notebook.
 5. **All 5 domains** covered by one config-driven pipeline.
 6. **Split discipline:** tune on validation, report final numbers on test, never tune on test.
 7. **A live demo is mandatory** at the final presentation.
@@ -167,7 +169,7 @@ only place subjective error can enter — so that's where validation effort conc
 |---|---|---|
 | Data | HF `datasets` → `rungalileo/ragbench` | official source |
 | Chunking | fixed 512/50 baseline | compare PGC, DFC, sentence-group (domain-dependent) |
-| Embeddings | `BAAI/bge-base-en-v1.5` | small models (MiniLM) for fast local iteration |
+| Embeddings | `BAAI/bge-base-en-v1.5` | MiniLM for fast iteration; all embedding runs on Colab (per constraint) |
 | Vector store | FAISS / ChromaDB | local, simple |
 | Sparse / fusion | `rank-bm25` + RRF | for hybrid retrieval |
 | Reranker | cross-encoder MiniLM / monoT5 | |
@@ -186,11 +188,11 @@ a **per-domain config**, and the analysis explicitly reports where each lever do
 
 ```mermaid
 flowchart LR
-    subgraph local["Local (CPU) — dev & evaluation"]
-        DL["data loading"] --- EVALM["TRACe math"] --- SCAFF["scaffolding / tests"]
+    subgraph local["Local — pure-Python (no models) + offline tests"]
+        DL["data loading"] --- CHK["chunking"] --- IDXP["FAISS index / repack / prompt"] --- EVALM["TRACe math"]
     end
-    subgraph colab["Google Colab (GPU) — heavy compute"]
-        EMB["embeddings"] --- RERANK["reranking"] --- GENC["generation (4-bit)"] --- IDXP["index build"]
+    subgraph colab["Google Colab (GPU) — ALL model inference"]
+        EMB["embeddings"] --- RERANK["reranking"] --- GENC["generation (4-bit)"] --- VAL["model-dependent checks"]
     end
     subgraph hf["HuggingFace Spaces"]
         GR["Gradio demo (best per-domain config)"]

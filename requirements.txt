@@ -25,10 +25,16 @@ sentence-transformers>=2.2
 # Vector index (brick 4): exact inner-product search; fine on CPU at our scale.
 faiss-cpu>=1.7
 
+# Generator (brick 7): the HuggingFace LLM backend runs on COLAB (per runtime
+# constraint — models are not run locally). transformers ships with
+# sentence-transformers; on Colab also install bitsandbytes + accelerate for 4-bit.
+transformers>=4.44
+# bitsandbytes   # Colab only — 4-bit quantization for the generator
+# accelerate     # Colab only — device_map for large models
+
 # Added as later bricks need them:
 # rank-bm25          # sparse retrieval (later: hybrid retriever)
 # chromadb           # alternative index backend (experimentation phase)
-# transformers bitsandbytes accelerate  # generator (brick 7, Colab/GPU)
 
 # --- Phase 4: demo ---
 # gradio
