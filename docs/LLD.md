@@ -64,10 +64,15 @@ src/
 │                         #    (schema lives here, in one file; grid generator deferred)
 ├── pipeline.py           # ✅ Pipeline: build_pipeline(cfg) assembles; index_documents() + answer()
 ├── runner.py             # ✅ ExperimentRunner: run_matrix() loops configs×domains → resumable CSV
+├── judge/                # ✅ TRACe judge — produces R/U labels (the evaluator's hard half)
+│   ├── base.py           #   Judge interface + EXACT Appendix-7.4 prompt + JSON parse + scores_from_label adapter
+│   ├── fake_judge.py     #   FakeJudge [type "fake"] — deterministic, no model (tests/wiring)
+│   ├── hf_judge.py       #   HuggingFaceJudge [type "hf"] — real OSS model, heavy, COLAB
+│   └── __init__.py       #   registers fake on import; load_judges() for hf
 └── evaluator/
     ├── trace.py          # ✅ 4 TRACe metrics from labels (BUILT)
-    ├── validate.py       # ✅ validate vs reference scores (BUILT)
-    ├── judge.py          # LLM judge (deferred; needs key)
+    ├── validate.py       # ✅ validate the MATH half vs reference scores (BUILT)
+    ├── judge_validate.py # ✅ validate the JUDGE half vs reference scores (§9.4)
     └── rgb.py            # RGB 4-ability metrics (Phase 3)
 ```
 
@@ -233,23 +238,25 @@ def validate_all(n=300) -> list[dict]                        # all 12 configs ac
 **Validation result:** reproduces reference scores exactly — RMSE = 0 on relevance/utilization/
 completeness and 100% adherence accuracy across all 12 configs (3,165 examples sampled).
 
-## 6. The judge bridge (deferred — needs key)
+## 6. The judge bridge ✅ (built — brick 10, `src/judge/`)
 
 The judge produces, for *our* pipeline's output, the same labels RAGBench ships, so the validated math
 in §5 can score it unchanged.
 
 ```python
-# src/evaluator/judge.py  (deferred)
+# src/judge/base.py
 class Judge(Protocol):
-    def label(self, keyed: KeyedExample) -> dict: ...
-    # returns all_relevant_sentence_keys, all_utilized_sentence_keys,
-    #         sentence_support_information, unsupported_response_sentence_keys
+    def label(self, question: str, keyed: dict) -> dict: ...   # RAGBench label JSON
+# scores_from_label(keyed, label) -> {relevance, utilization, completeness, adherence}
+#   (adherence = label["overall_supported"]; fractions via trace.py)
 ```
 
-- Uses the RAGBench Appendix-7.4 labeling prompt; hosted LLM, **judge-only**; temperature 0; JSON mode.
-- **Cache:** `hash(keyed_example) → JSON` on disk to control cost and avoid recompute.
-- **Validate before trusting:** run on labelled RAGBench examples, compare judge labels/scores to the
-  shipped ones (RMSE on the fractions, AUROC/F1 on adherence) until agreement is acceptable.
+- Uses the **EXACT RAGBench Appendix-7.4 labeling prompt** (verbatim, in `base.py`). A strong **open-source**
+  model on Colab (`hf` judge, temperature 0, deterministic); an OpenAI judge can drop in via the same interface.
+  Robust JSON parsing tolerates ```json fences / surrounding prose. `fake` judge for offline tests.
+- **Cache (TODO at scale):** `hash(keyed_example) → JSON` on disk to avoid recompute.
+- **Validate before trusting** (`evaluator/judge_validate.py`): run on labelled RAGBench examples, compare judge
+  scores to the shipped ones (RMSE on fractions, accuracy on adherence) until agreement is acceptable.
 
 ```mermaid
 flowchart LR

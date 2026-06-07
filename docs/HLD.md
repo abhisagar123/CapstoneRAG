@@ -123,7 +123,7 @@ flowchart LR
 | **OutputSegmenter** | Split our context+answer into keyed sentences for the judge | ✅ **built** (brick 8; regex + nltk splitters) |
 | **Pipeline + Runner** | Assemble components from config; loop configs × domains | ✅ **built** (brick 9; config + pipeline + runner) |
 | **TRACe math** | The 4 metrics from sentence labels | ✅ **built & validated** |
-| **TRACe judge** | Produce R/U/support labels for our pipeline's answers | deferred (needs key) |
+| **TRACe judge** | Produce R/U/support labels for our pipeline's answers | ✅ **built** (brick 10; OSS `hf` judge on Colab + fake for tests) |
 | **RGB evaluator** | The 4 robustness-ability metrics | planned (Phase 3) |
 | **Demo** | Gradio app: domain → query → answer + sources | planned (Phase 4) |
 
@@ -157,8 +157,10 @@ TRACe defines four metrics. With `Len()` in **sentences**:
 **Two-stage validation strategy** (de-risks the most important deliverable):
 1. **Arithmetic half** (no LLM) — proven during EDA to reproduce RAGBench's shipped reference scores
    **exactly** (RMSE = 0 on all 12 configs; adherence 100%). ✅ Done.
-2. **Judge half** (LLM, judge-only) — produces the R/U/support labels for *our* pipeline's outputs;
-   validated against shipped labels before we trust any experiment number. Deferred until a key exists.
+2. **Judge half** (LLM) — produces the R/U/support labels for *our* pipeline's outputs, using the exact
+   RAGBench Appendix-7.4 prompt. ✅ Built (brick 10) as a swappable judge: a strong **open-source** model on
+   Colab now (no key needed); an OpenAI judge can drop in later via the same interface. Must be **validated
+   against shipped reference scores** (`evaluator/judge_validate.py`) before we trust any experiment number.
 
 This split means the math is provably correct *before* any model is involved, and the judge is the
 only place subjective error can enter — so that's where validation effort concentrates.
@@ -174,7 +176,7 @@ only place subjective error can enter — so that's where validation effort conc
 | Sparse / fusion | `rank-bm25` + RRF | for hybrid retrieval |
 | Reranker | cross-encoder MiniLM / monoT5 | |
 | Generator | Qwen2.5-7B / Llama-3.1-8B (4-bit) | Qwen2.5-3B for fast dev |
-| Judge | hosted LLM, judge-only | cached; deferred until key available |
+| Judge | strong OSS model on Colab (Appendix-7.4 prompt); OpenAI later | validate vs reference scores first |
 | Demo | Gradio | |
 
 ## 10. Domain-awareness (why "one pipeline" still adapts per domain)
