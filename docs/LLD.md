@@ -47,7 +47,11 @@ src/
 │   ├── grounded_prompt_builder.py  # GroundedPromptBuilder [type "grounded"] — baseline
 │   ├── minimal_prompt_builder.py   # MinimalPromptBuilder  [type "minimal"]  — contrast arm
 │   └── __init__.py       #   re-exports + registers (pure Python, light)
-├── generator.py          # Generator: open-source LLM (+ StubGenerator for local)
+├── generation/           # ✅ Generator strategies (package)
+│   ├── base.py           #   Generator interface
+│   ├── echo_generator.py #   EchoGenerator [type "echo"] — light, no model (tests/wiring)
+│   ├── hf_generator.py   #   HuggingFaceGenerator [type "hf"] — real LLM, heavy, COLAB
+│   └── __init__.py       #   registers echo on import; load_generators() for hf
 ├── segment.py            # OutputSegmenter: context+answer → keyed sentences
 ├── query.py              # (optional) QueryTransform: HyDE / decomposition
 ├── summarizer.py         # (optional) Summarizer: context compression

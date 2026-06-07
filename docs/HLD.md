@@ -117,7 +117,7 @@ flowchart LR
 | **Reranker** | Re-order candidates (cross-encoder / monoT5) | ✅ **built** (brick 5; cross-encoder + noop) |
 | **Repacker** | Order chunks in the prompt (forward / reverse / sides) | ✅ **built** (brick 5) |
 | **PromptBuilder** | Assemble the grounding prompt (biggest Adherence lever) | ✅ **built** (brick 6; grounded + minimal) |
-| **Generator** | Open-source LLM answer generation (4-bit on Colab) | planned (brick 7) |
+| **Generator** | Open-source LLM answer generation (4-bit on Colab) | ✅ **built** (brick 7; hf for Colab + echo for tests) |
 | **OutputSegmenter** | Split our context+answer into keyed sentences for the judge | planned (brick 8) |
 | **Pipeline + Runner** | Assemble components from config; loop configs × domains | planned (brick 9) |
 | **TRACe math** | The 4 metrics from sentence labels | ✅ **built & validated** |
