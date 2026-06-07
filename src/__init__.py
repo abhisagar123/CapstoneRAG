@@ -18,3 +18,4 @@ from . import repacking   # noqa: F401  — registers forward / reverse / sides 
 from . import reranking    # noqa: F401  — registers NoOpReranker; CrossEncoder gated behind load_rerankers()
 from . import prompting    # noqa: F401  — registers grounded / minimal prompt builders (pure Python)
 from . import generation   # noqa: F401  — registers EchoGenerator; HuggingFaceGenerator gated behind load_generators()
+from . import segmentation  # noqa: F401  — registers RegexSplitter; NltkSplitter gated behind load_nltk_splitter()

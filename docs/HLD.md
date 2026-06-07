@@ -120,7 +120,7 @@ flowchart LR
 | **Repacker** | Order chunks in the prompt (forward / reverse / sides) | ✅ **built** (brick 5) |
 | **PromptBuilder** | Assemble the grounding prompt (biggest Adherence lever) | ✅ **built** (brick 6; grounded + minimal) |
 | **Generator** | Open-source LLM answer generation (4-bit on Colab) | ✅ **built** (brick 7; hf for Colab + echo for tests) |
-| **OutputSegmenter** | Split our context+answer into keyed sentences for the judge | planned (brick 8) |
+| **OutputSegmenter** | Split our context+answer into keyed sentences for the judge | ✅ **built** (brick 8; regex + nltk splitters) |
 | **Pipeline + Runner** | Assemble components from config; loop configs × domains | planned (brick 9) |
 | **TRACe math** | The 4 metrics from sentence labels | ✅ **built & validated** |
 | **TRACe judge** | Produce R/U/support labels for our pipeline's answers | deferred (needs key) |

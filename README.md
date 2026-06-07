@@ -28,7 +28,7 @@ ready-made library.
 
 **RAG pipeline bricks** (built one at a time, each tested): data loader ✅ · chunker + registry ✅ ·
 embedder ✅ · index + retriever ✅ (FAISS dense) · reranker + repacker ✅ · prompt builder ✅ ·
-generator ✅ (hf for Colab + echo for tests) · output segmenter ⬜ (next) · pipeline wiring + experiment runner ⬜.
+generator ✅ (hf for Colab + echo for tests) · output segmenter ✅ (regex + nltk) · pipeline wiring + experiment runner ⬜ (next).
 
 > **Note:** per a runtime constraint, all model inference (embedder, reranker, generator) runs on **Google
 > Colab**; the pure-Python stages (loader, chunker, indexing, repacking, prompting, evaluator) and their offline
@@ -52,6 +52,7 @@ src/
   repacking/       # Repacker interface + chunk-ordering strategies (forward/reverse/sides)
   prompting/       # PromptBuilder interface + grounded/minimal prompt variants
   generation/      # Generator interface + HuggingFace LLM (Colab) + echo (tests)
+  segmentation/    # SentenceSplitter (regex/nltk) + OutputSegmenter: pipeline→evaluator bridge
   evaluator/
     trace.py       # the 4 TRACe metrics (relevance, utilization, completeness, adherence)
     validate.py    # validates trace.py against RAGBench reference scores (RMSE / accuracy)
