@@ -8,10 +8,11 @@ Per-experiment flow (for N examples of a domain):
 Aggregate the N examples' scores -> one summary row.
 
 THE JUDGE IS PLUGGABLE + OPTIONAL (it's deferred — needs a strong model / key):
-  - judge=None  -> run pipeline + segment only; row records that scoring is pending
+  - judge=None   -> run pipeline + segment only; row records that scoring is pending
     (still useful: confirms the pipeline runs end-to-end and logs counts).
-  - judge=fn    -> fn(question, keyed) returns RAGBench-style labels; we score with
-    the validated TRACe math. Drop the OSS/OpenAI judge in here later, no other change.
+  - judge=Judge  -> a Judge object (judge/base.py): judge.label(question, keyed)
+    returns RAGBench-style labels, which scores_from_label() maps to the validated
+    TRACe math. Drop the OSS/OpenAI judge in here later, no other change.
 
 Robustness (Colab dies mid-sweep):
   - rows are written to the CSV AS each experiment finishes (not all at the end),
@@ -25,9 +26,7 @@ import os
 
 from .pipeline import build_pipeline
 from .segmentation import OutputSegmenter
-from .evaluator.trace import (
-    total_doc_sentences, relevance, utilization, completeness, adherence,
-)
+from .judge.base import scores_from_label
 
 
 def config_id(cfg) -> str:
@@ -42,21 +41,19 @@ def config_id(cfg) -> str:
 
 def _score_one(example, answer: str, segmenter: OutputSegmenter, judge) -> dict | None:
     """Segment our output, ask the judge for labels, compute the 4 TRACe scores.
-    Returns None if no judge (scoring deferred)."""
+    Returns None if no judge (scoring deferred).
+
+    The judge is a Judge object (judge/base.py): call its `.label(question, keyed)`
+    method, then map the label JSON to the 4 scores with `scores_from_label` — the
+    same validated adapter the judge-validation harness uses, so scoring goes through
+    one path. (Adherence comes from the judge's `overall_supported` bool, §9.6.)
+    """
     if judge is None:
         return None
     # Build keyed sentences from OUR context (the retrieved chunk texts) + answer.
     keyed = segmenter.segment(example["_context_texts"], answer)
-    labels = judge(example["question"], keyed)        # judge returns RAGBench-style label dict
-    total = total_doc_sentences(keyed["documents_sentences"])
-    R = labels["all_relevant_sentence_keys"]
-    U = labels["all_utilized_sentence_keys"]
-    return {
-        "relevance": relevance(R, total),
-        "utilization": utilization(U, total),
-        "completeness": completeness(R, U),
-        "adherence": adherence(labels["unsupported_response_sentence_keys"]),
-    }
+    label = judge.label(example["question"], keyed)   # judge returns RAGBench-style label dict
+    return scores_from_label(keyed, label)
 
 
 def _mean(values: list) -> float | str:
