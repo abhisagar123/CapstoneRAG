@@ -16,6 +16,7 @@ import src  # noqa: F401
 from src.registry import register, available
 from src.config import from_dict
 from src.segmentation import OutputSegmenter, RegexSplitter
+from src.judge import FakeJudge
 from src.runner import run_experiment, run_matrix, config_id, _mean, FIELDNAMES
 
 if "fake" not in available("embedder"):
@@ -31,11 +32,12 @@ if "fake" not in available("embedder"):
             return np.array(out)
 
 
-def fake_judge(question, keyed):
-    keys = [s[0] for doc in keyed["documents_sentences"] for s in doc]
-    return {"all_relevant_sentence_keys": keys[: max(1, len(keys) // 2)],
-            "all_utilized_sentence_keys": keys[: max(1, len(keys) // 3)],
-            "unsupported_response_sentence_keys": []}
+# Use the REAL FakeJudge object (a Judge with .label()), NOT a bespoke function —
+# so this test exercises the actual runner↔judge seam. (A function-style stub here
+# once hid a real bug: the runner called judge(...) and read a field the judge never
+# emits. Testing each brick against a faked neighbour is only safe if the fake honours
+# the real contract.)
+JUDGE = FakeJudge()
 
 
 BASE = {
@@ -69,7 +71,7 @@ def test_mean_counts_booleans_as_rate():
 
 
 def test_run_experiment_with_judge_scores_all_four():
-    row = run_experiment(from_dict(BASE), EXAMPLES, segmenter=SEG, judge=fake_judge)
+    row = run_experiment(from_dict(BASE), EXAMPLES, segmenter=SEG, judge=JUDGE)
     assert row["n"] == 2 and row["n_scored"] == 2
     for metric in ("relevance", "utilization", "completeness", "adherence"):
         assert isinstance(row[metric], float)        # all four populated (incl. adherence!)
@@ -88,7 +90,7 @@ def test_run_matrix_writes_csv_and_is_resumable():
     if os.path.exists(out):
         os.remove(out)
     configs = [from_dict(BASE), from_dict({**BASE, "repacker": {"type": "forward"}})]
-    run_matrix(configs, examples_for=lambda cfg: EXAMPLES, out_csv=out, segmenter=SEG, judge=fake_judge)
+    run_matrix(configs, examples_for=lambda cfg: EXAMPLES, out_csv=out, segmenter=SEG, judge=JUDGE)
 
     with open(out, newline="") as f:
         rows = list(csv.DictReader(f))
@@ -97,7 +99,7 @@ def test_run_matrix_writes_csv_and_is_resumable():
     assert {r["repacker"] for r in rows} == {"reverse", "forward"}
 
     # Re-run: nothing new appended (resumable / skip-already-done).
-    run_matrix(configs, examples_for=lambda cfg: EXAMPLES, out_csv=out, segmenter=SEG, judge=fake_judge)
+    run_matrix(configs, examples_for=lambda cfg: EXAMPLES, out_csv=out, segmenter=SEG, judge=JUDGE)
     with open(out, newline="") as f:
         assert len(list(csv.DictReader(f))) == 2       # still 2, not 4
     os.remove(out)
