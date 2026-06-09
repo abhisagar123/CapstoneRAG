@@ -36,24 +36,29 @@ class HuggingFaceJudge:
         self.model = AutoModelForCausalLM.from_pretrained(model, **kwargs)
         self._torch = torch
 
-    def _generate(self, prompt: str) -> str:
+    def _generate(self, prompt: str, sample: bool = False) -> str:
         messages = [{"role": "user", "content": prompt}]
         text = self.tokenizer.apply_chat_template(
             messages, tokenize=False, add_generation_prompt=True)
         inputs = self.tokenizer(text, return_tensors="pt").to(self.model.device)
+        # First pass is greedy (deterministic — best for ground truth). On a retry we
+        # SAMPLE (sample=True) so the re-generation actually DIFFERS; a greedy retry
+        # would reproduce the same unparseable text byte-for-byte and be pointless.
+        gen_kwargs = {"max_new_tokens": self.max_new_tokens, "do_sample": sample}
+        if sample:
+            gen_kwargs["temperature"] = 0.3            # mild — vary phrasing, not content
         with self._torch.no_grad():
-            out = self.model.generate(**inputs, max_new_tokens=self.max_new_tokens,
-                                      do_sample=False)   # deterministic for ground truth
+            out = self.model.generate(**inputs, **gen_kwargs)
         new = out[0][inputs["input_ids"].shape[1]:]
         return self.tokenizer.decode(new, skip_special_tokens=True)
 
     def label(self, question: str, keyed: dict) -> dict:
         prompt = build_prompt(question, keyed)
         last_err = None
-        for _ in range(self.max_retries + 1):
-            raw = self._generate(prompt)
+        for attempt in range(self.max_retries + 1):
+            raw = self._generate(prompt, sample=(attempt > 0))   # greedy first, then sample
             try:
                 return parse_label_json(raw)
             except ValueError as e:
-                last_err = e                          # retry once on malformed JSON
+                last_err = e                          # malformed JSON -> retry with sampling
         raise ValueError(f"judge produced unparseable JSON after retries: {last_err}")

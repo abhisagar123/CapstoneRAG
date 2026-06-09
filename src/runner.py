@@ -52,8 +52,15 @@ def _score_one(example, answer: str, segmenter: OutputSegmenter, judge) -> dict 
         return None
     # Build keyed sentences from OUR context (the retrieved chunk texts) + answer.
     keyed = segmenter.segment(example["_context_texts"], answer)
-    label = judge.label(example["question"], keyed)   # judge returns RAGBench-style label dict
-    return scores_from_label(keyed, label)
+    try:
+        label = judge.label(example["question"], keyed)   # judge returns RAGBench-style label dict
+        return scores_from_label(keyed, label)
+    except (ValueError, KeyError) as e:
+        # OSS judge emitted unparseable/malformed JSON even after retry. Skip this ONE
+        # answer rather than crash the whole config's matrix row; the caller counts it
+        # via (n - n_scored). Same robustness rule as evaluator/judge_validate.py.
+        print(f"  [skip] judge failed on one example ({e})")
+        return None
 
 
 def _mean(values: list) -> float | str:

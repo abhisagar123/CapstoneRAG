@@ -167,22 +167,70 @@ def build_prompt(question: str, keyed: dict) -> str:
 
 # ── robust JSON extraction (OSS models often wrap JSON in prose/markdown) ─────────
 
-def parse_label_json(text: str) -> dict:
-    """Extract the JSON object from a model's raw output. Tolerates ```json fences
-    and surrounding prose by grabbing the outermost {...}. Raises ValueError if none."""
-    # Strip a ```json ... ``` fence if present.
+def _extract_candidate(text: str) -> str:
+    """Pull the JSON object substring out of a model's raw output (fence or outermost {...})."""
     fence = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", text, re.DOTALL)
-    candidate = fence.group(1) if fence else None
-    if candidate is None:
-        # Fallback: outermost balanced-looking {...}
-        start, end = text.find("{"), text.rfind("}")
-        if start == -1 or end == -1 or end <= start:
-            raise ValueError("no JSON object found in judge output")
-        candidate = text[start:end + 1]
+    if fence:
+        return fence.group(1)
+    start, end = text.find("{"), text.rfind("}")
+    if start == -1 or end == -1 or end <= start:
+        raise ValueError("no JSON object found in judge output")
+    return text[start:end + 1]
+
+
+def _escape_inner_quotes(s: str) -> str:
+    """Salvage the #1 OSS-judge JSON failure: an UNescaped double-quote inside a
+    string value, e.g.  "explanation": "the term "net 30" applies"  -> the inner
+    quotes break json.loads ('Expecting , delimiter').
+
+    Walk the text char by char tracking whether we're inside a string. A `"` is
+    STRUCTURAL (keep as-is) only if, ignoring whitespace, the next non-space char
+    is one of  : , } ]  (closing a value/key) OR it's opening a string right after
+    one of  : , { [  . Any other `"` while inside a string is a literal the model
+    forgot to escape -> we escape it to \\". Best-effort; if it still won't parse,
+    the caller falls back to raising.
+    """
+    out = []
+    in_str = False
+    n = len(s)
+    for i, ch in enumerate(s):
+        if ch != '"':
+            out.append(ch)
+            continue
+        if not in_str:
+            # Opening a string (we only flip to in_str when the prev meaningful char
+            # was a structural opener — but for robustness just treat it as opening).
+            in_str = True
+            out.append(ch)
+            continue
+        # We're inside a string and hit a `"`. Decide: structural close or literal?
+        j = i + 1
+        while j < n and s[j] in " \t\r\n":
+            j += 1
+        nxt = s[j] if j < n else ""
+        if nxt in ":,}]" or nxt == "":
+            in_str = False          # legitimate end of this string value
+            out.append(ch)
+        else:
+            out.append('\\"')       # unescaped inner quote -> escape it
+    return "".join(out)
+
+
+def parse_label_json(text: str) -> dict:
+    """Extract + parse the JSON object from a model's raw output.
+
+    Three passes, increasingly forgiving (OSS judges are messy):
+      1. strict parse of the extracted {...}            (fast path, clean models)
+      2. salvage unescaped inner quotes, parse again    (the common 7B failure)
+    Raises ValueError if all passes fail (the caller skips/counts that example)."""
+    candidate = _extract_candidate(text)            # may raise: no object at all
     try:
-        return json.loads(candidate)
-    except json.JSONDecodeError as e:
-        raise ValueError(f"judge output was not valid JSON: {e}")
+        return json.loads(candidate)                # pass 1: strict
+    except json.JSONDecodeError as first_err:
+        try:
+            return json.loads(_escape_inner_quotes(candidate))   # pass 2: salvage
+        except json.JSONDecodeError:
+            raise ValueError(f"judge output was not valid JSON: {first_err}")
 
 
 # ── adapter: judge JSON -> the 4 TRACe scores (reuses the validated math) ─────────
