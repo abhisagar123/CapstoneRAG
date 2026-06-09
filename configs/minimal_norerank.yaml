@@ -1,0 +1,18 @@
+# Experiment: MINIMAL prompt + NO reranker (the "stripped" baseline).
+# The opposite corner of the 2x2 grid from grounded_rerank.yaml. Both levers off,
+# so it's the floor the other three are measured against.
+domain: Legal
+
+chunker:   { type: fixed, size: 512, overlap: 50 }
+embedder:  { type: minilm }
+index:     { type: faiss, corpus_mode: per_example }
+
+retriever: { type: dense, k: 20 }
+reranker:  { type: none, top_n: 5 }
+repacker:  { type: reverse }
+prompt:    { type: minimal }
+generator: { type: hf, model: Qwen/Qwen2.5-3B-Instruct, load_in_4bit: false, max_new_tokens: 256 }
+
+splitter:  { type: regex }
+
+seed: 42
