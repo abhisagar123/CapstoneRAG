@@ -21,8 +21,9 @@ ready-made library.
 |---|---|---|
 | 0 | Repo, EDA, schema confirmation | ✅ done |
 | 1a | TRACe evaluator — **math half** (the 4 metrics from gold labels) | ✅ done & validated |
-| 1b | TRACe evaluator — **LLM-judge half** (produces labels for our own pipeline) | ✅ built (OSS judge on Colab; validate next) |
-| 1c–2 | Modular RAG pipeline (built brick by brick) + per-domain ablations | 🚧 in progress |
+| 1b | TRACe evaluator — **LLM-judge half** (produces labels for our own pipeline) | ✅ built (OSS judge on Colab) |
+| 1c | Modular RAG pipeline (built brick by brick) + config + experiment runner | ✅ built |
+| 2 | Colab notebooks (judge validation, results matrix) + per-domain ablations | 🚧 running on Colab |
 | 3 | RGB robustness evaluation | ⬜ |
 | 4 | Gradio demo + report | ⬜ |
 
@@ -30,10 +31,12 @@ ready-made library.
 embedder ✅ · index + retriever ✅ (FAISS dense) · reranker + repacker ✅ · prompt builder ✅ ·
 generator ✅ (hf for Colab + echo for tests) · output segmenter ✅ (regex + nltk) · pipeline wiring + experiment runner ✅.
 
-**🎉 The RAG pipeline + evaluator are complete** — a config (YAML) assembles all components and `run_matrix()`
-runs configs × domains into a resumable results CSV, and the TRACe **judge** (strong OSS model on Colab via the
-exact RAGBench Appendix-7.4 prompt; OpenAI can drop in later) produces the labels that fill in real scores.
-Remaining: validate the judge vs reference scores → run the RAGBench results matrix → RGB (Task 2) → demo.
+**🎉 The RAG pipeline + evaluator are complete** — a config (YAML in `configs/`) assembles all components and
+`run_matrix()` runs configs × domains into a resumable results CSV, and the TRACe **judge** (strong OSS model on
+Colab via the exact RAGBench Appendix-7.4 prompt; OpenAI can drop in later) produces the labels that fill in real
+scores. Two Colab notebooks now drive this: `03_judge_validation.ipynb` (pick the judge by agreement with the
+reference scores) and `04_run_matrix.ipynb` (produce the strategy × domain matrix). **Current step:** running these
+on Colab. Remaining after: analyze the matrix vs reference scores → RGB (Task 2) → demo.
 
 > **Note:** per a runtime constraint, all model inference (embedder, reranker, generator) runs on **Google
 > Colab**; the pure-Python stages (loader, chunker, indexing, repacking, prompting, evaluator) and their offline
@@ -63,12 +66,16 @@ src/
   runner.py        # ExperimentRunner: run configs × domains → resumable results CSV
   judge/           # TRACe judge: Appendix-7.4 prompt → R/U labels (OSS on Colab + fake for tests)
   evaluator/
-    trace.py       # the 4 TRACe metrics (relevance, utilization, completeness, adherence)
-    validate.py    # validates trace.py against RAGBench reference scores (RMSE / accuracy)
-tests/             # lightweight assert scripts (python tests/check_*.py)
+    trace.py         # the 4 TRACe metrics (relevance, utilization, completeness, adherence)
+    validate.py      # validates trace.py (math half) against RAGBench reference scores
+    judge_validate.py # validates the judge half: its scores vs the reference (RMSE / accuracy)
+configs/             # experiment definitions (one YAML = one pipeline setup) + README
+tests/               # lightweight assert scripts (python tests/check_*.py)
 notebooks/
   01_eda.ipynb                  # dataset schema confirmation + chunking-lever analysis
   02_evaluator_validation.ipynb # proves the math-half evaluator reproduces reference scores
+  03_judge_validation.ipynb     # Colab: pick the judge by agreement with reference scores
+  04_run_matrix.ipynb           # Colab: run configs × domains → strategy × domain matrix
 results/
   evaluator_validation.csv      # the validation report card
 docs/
