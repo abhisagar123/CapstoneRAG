@@ -1,11 +1,12 @@
 # Low-Level Design (LLD) — CapstoneRAG
 
 **Companion to:** [`HLD.md`](./HLD.md) (system-level *what/why*). This document is the *how*.
-**Status:** living document · last updated 2026-06-06.
+**Status:** living document · last updated 2026-06-09.
 
-> ⚠️ **Design intent, not frozen contract.** Interfaces below are the planned shape; signatures and
-> data structures may be refined during implementation. The TRACe math module (§5) is the exception —
-> it is **built and validated** and reflects real code.
+> ⚠️ **Design intent vs as-built.** Sections marked **AS-BUILT** reflect real, shipped code (verified
+> against the source). Unmarked sketches (e.g. the optional QueryTransform/Summarizer, the `expand_grid`
+> generator, Drive persistence) are *planned* shape and may change. When a sketch and the code disagree,
+> the code wins — file an update here.
 
 ---
 
@@ -142,13 +143,12 @@ class Embedder(Protocol):
     @property
     def dim(self) -> int: ...
 
-class Index(Protocol):
-    # corpus mode set at build time: "per_example" or "pooled" (per-domain corpus)
-    def build(self, chunks: list[Chunk], vectors: "np.ndarray") -> None: ...
-    def search(self, query_vec: "np.ndarray", k: int) -> list[RetrievedChunk]: ...
-    def persist(self, path: str) -> None: ...      # save to Drive
-    @classmethod
-    def load(cls, path: str) -> "Index": ...
+class Index(Protocol):                             # AS-BUILT (src/indexing/base.py)
+    # corpus_mode set at construction: "per_example" or "pooled" (per-domain corpus)
+    def add(self, chunks: list[Chunk], vectors: "np.ndarray") -> None: ...
+    def search(self, query_vector: "np.ndarray", k: int = 5) -> list[RetrievedChunk]: ...
+    def __len__(self) -> int: ...
+    # persist()/load() to Drive are PLANNED (not built yet) — re-embedding is cheap at current scale.
 
 class Retriever(Protocol):
     # wraps an Index; "dense" | "sparse"(BM25) | "hybrid"(RRF over both)
@@ -170,19 +170,25 @@ class Generator(Protocol):
     def generate(self, prompt: str) -> str: ...
     # OSS LLM (4-bit, Colab). StubGenerator(echo/templated) lets the belt run locally with no GPU.
 
-class OutputSegmenter(Protocol):
-    def keyed(self, context_chunks: list[RetrievedChunk], answer: str) -> KeyedExample: ...
-    # produces "0a"/"1b" doc-sentence keys and "a"/"b" response keys (RAGBench scheme, §6).
+class OutputSegmenter:                             # AS-BUILT (src/segmentation/base.py)
+    def __init__(self, splitter: SentenceSplitter): ...   # swappable regex/nltk splitter
+    def segment(self, doc_texts: list[str], answer: str) -> dict: ...
+    # returns {"documents_sentences": [[["0a",text],...],...], "response_sentences": [["a",text],...]}
+    # i.e. the RAGBench-keyed schema as plain lists (not the KeyedExample dataclass §2 sketched).
 ```
 
 ## 4. Pipeline assembly & flow
 
 ```python
-class Pipeline:
-    def __init__(self, cfg: PipelineConfig): ...   # built via factory from validated config
-    def index_domain(self, domain: str, split: str) -> None: ...   # offline: chunk→embed→index
-    def answer(self, query: str) -> PipelineOutput: ...            # online (below)
+class Pipeline:                                    # AS-BUILT (src/pipeline.py)
+    def __init__(self, config: PipelineConfig): ...      # built via build_pipeline(config)
+    def index_documents(self, documents: list[str], doc_ids=None) -> int: ...  # offline: chunk→embed→index
+    def reset_index(self) -> None: ...                   # fresh empty index (per_example mode: clear between examples)
+    def answer(self, query: str) -> dict: ...            # online → {"answer", "sources", "context"}
 ```
+
+> Note: `index_documents(docs)` takes a document list (the runner feeds each example's own docs for
+> `per_example` corpus mode), not a `(domain, split)` pair — domain loading lives in `data_loader.py`.
 
 ```mermaid
 sequenceDiagram
@@ -336,36 +342,49 @@ flowchart LR
     CFGS --> FACT["build_pipeline()"]
 ```
 
-Example experiment (`configs/legal_baseline.yaml`):
+Example experiment (illustrative — shows the *shape*; some types below are aspirational). **For configs
+that actually validate against the current registry, see the real files in `configs/`** (e.g.
+`grounded_rerank.yaml`) and `configs/README.md`. Registered types today: chunker `fixed`/`none`;
+embedder `minilm`/`sentence_transformer`; index `faiss`; retriever `dense`; reranker `cross_encoder`/`none`;
+repacker `forward`/`reverse`/`sides`; prompt `grounded`/`minimal`; generator `hf`/`echo`; splitter `regex`/`nltk`.
 
 ```yaml
-domain: legal
+domain: Legal
 chunker:    { type: fixed,  size: 512, overlap: 50 }
-embedder:   { type: bge_base }
-index:      { type: faiss, corpus: pooled }
-retriever:  { type: hybrid, k: 20 }
-reranker:   { type: monoT5, top_n: 5 }   # null to ablate OFF
-repacker:   { type: reverse }            # forward | reverse | sides
-summarizer: null
-prompt:     { type: grounded_v1 }
-generator:  { type: qwen2.5-7b, temperature: 0.0 }
+embedder:   { type: minilm }
+index:      { type: faiss, corpus_mode: per_example }   # per_example | pooled
+retriever:  { type: dense, k: 20 }
+reranker:   { type: cross_encoder, top_n: 5 }           # null to ablate OFF
+repacker:   { type: reverse }                           # forward | reverse | sides
+prompt:     { type: grounded }
+generator:  { type: hf, model: Qwen/Qwen2.5-3B-Instruct, load_in_4bit: false }
+splitter:   { type: regex }                             # bridge to the judge
 ```
+
+> Note: the as-built `PipelineConfig` (`src/config.py`) has no `summarizer` field yet (optional stage,
+> deferred) and *adds* a required `splitter` (the segmenter's strategy). The §8 dataclass sketch above
+> predates that — `src/config.py` is the source of truth.
 
 ## 9. Experiment runner (produces the deliverable matrix)
 
 ```python
-# src/runner.py
-def run_experiment(cfg: PipelineConfig, *, n: int) -> dict:
-    # index domain (or load cached) → answer n queries → segment → judge → score → aggregate
-    # returns one row: {config fields..., mean TRACe scores, n, timestamp}
+# src/runner.py — AS-BUILT
+def run_experiment(cfg, examples, *, segmenter: OutputSegmenter, judge=None) -> dict:
+    # for each example: reset_index → index_documents(its docs) → answer → segment → [judge → score]
+    # returns one row: {config_id, domain, stage types, n, n_scored, mean TRACe scores, scoring}
+    # judge=None → answers only (scoring="pending"); a Judge object → real scores.
+    # A judge that emits unparseable JSON on one example is SKIPPED + counted (n - n_scored), not fatal.
 
-def run_matrix(configs: list[PipelineConfig], out_csv: str) -> None:
-    # loop configs × domains; append rows to CSV; resilient to per-run failure (log + continue)
+def run_matrix(configs, examples_for, out_csv: str, *, segmenter=None, judge=None) -> None:
+    # loop configs; examples_for(cfg) supplies that config's domain examples.
+    # writes one row per (config_id, domain) AS IT FINISHES (f.flush) and SKIPS already-done
+    # pairs → RESUMABLE across a Colab disconnect.
 ```
 
-Each row records the **resolved config** (as JSON) alongside its scores, so the results matrix is fully
-reproducible and diffable. One component changes at a time across rows — that is what makes the matrix
-interpretable.
+Each row records the config's stage types + its mean scores, so the results matrix is reproducible and
+diffable. One component changes at a time across rows — that is what makes the matrix interpretable.
+(Notebook 04 adds a `config_name` column keyed on the YAML filename, since `config_id` is built from
+stage *types* and would collide for two configs differing only in a param.)
 
 ## 10. RGB evaluator (Task 2 — Phase 3)
 
