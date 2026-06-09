@@ -64,10 +64,23 @@ def validate_judge(judge, config: str, n: int = 50, split: str = "test") -> dict
     n_scored = n - n_failed
     report = {"config": config, "n": n, "n_scored": n_scored, "n_failed": n_failed}
     for m in FRACTIONS:
-        gaps = [abs(a - b) for a, b in zip(ours[m], ref[m])]
+        diffs = [a - b for a, b in zip(ours[m], ref[m])]          # SIGNED: + => judge over-marks
+        gaps = [abs(d) for d in diffs]
         report[m] = {"rmse": rmse(ours[m], ref[m]),
-                     "mean_abs_err": (sum(gaps) / len(gaps)) if gaps else 0.0}
+                     "mean_abs_err": (sum(gaps) / len(gaps)) if gaps else 0.0,
+                     # signed_err tells DIRECTION: if |signed_err| ~ mean_abs_err the bias is
+                     # systematic (a prompt tweak can fix it); if signed_err ~ 0 but mae is high,
+                     # the errors are random (the model just isn't capable -> needs a stronger judge).
+                     "signed_err": (sum(diffs) / len(diffs)) if diffs else 0.0}
     # Accuracy is over SCORED examples, not all n (skipped ones aren't "wrong").
+    # Also split adherence mistakes by DIRECTION (judge bool vs reference bool):
+    #   over_flag  = judge said NOT supported (False) but reference said supported (True)
+    #                -> the judge is too harsh / over-flags hallucination
+    #   under_flag = judge said supported (True) but reference said NOT supported (False)
+    #                -> the judge misses real hallucination
     adh_correct = sum(bool(a) == bool(b) for a, b in zip(ours["adherence"], ref["adherence"]))
-    report["adherence"] = {"accuracy": adh_correct / n_scored if n_scored else 0.0}
+    over_flag = sum((not bool(a)) and bool(b) for a, b in zip(ours["adherence"], ref["adherence"]))
+    under_flag = sum(bool(a) and (not bool(b)) for a, b in zip(ours["adherence"], ref["adherence"]))
+    report["adherence"] = {"accuracy": adh_correct / n_scored if n_scored else 0.0,
+                           "over_flag": over_flag, "under_flag": under_flag}
     return report
