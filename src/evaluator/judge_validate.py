@@ -32,7 +32,12 @@ def validate_judge(judge, config: str, n: int = 50, split: str = "test") -> dict
     """Run `judge` on n examples of a config; compare its scores to the reference.
 
     Returns a report: RMSE + mean abs error per fraction, accuracy for adherence,
-    and n. Imports `datasets` lazily.
+    plus `n` (examples attempted), `n_scored`, and `n_failed`. Imports `datasets` lazily.
+
+    ROBUSTNESS: OSS judges sometimes emit JSON we can't parse even after a retry. One
+    such example must NOT kill the whole config — we skip it, count it in `n_failed`,
+    and score the rest. The failure RATE is itself a judge-quality signal (a model that
+    fails often is a worse choice), so we surface it rather than hiding it.
     """
     from datasets import load_dataset
 
@@ -42,19 +47,27 @@ def validate_judge(judge, config: str, n: int = 50, split: str = "test") -> dict
 
     ours = {m: [] for m in REFERENCE_FIELD}
     ref = {m: [] for m in REFERENCE_FIELD}
+    n_failed = 0
     for ex in ds:
         keyed = _keyed_from_example(ex)
-        label = judge.label(ex["question"], keyed)
-        s = scores_from_label(keyed, label)
+        try:
+            label = judge.label(ex["question"], keyed)
+            s = scores_from_label(keyed, label)
+        except (ValueError, KeyError) as e:
+            n_failed += 1                              # unparseable/malformed -> skip, count
+            print(f"  [skip] {config}: judge failed on one example ({e})")
+            continue
         for m in REFERENCE_FIELD:
             ours[m].append(s[m])
             ref[m].append(ex[REFERENCE_FIELD[m]])
 
-    report = {"config": config, "n": n}
+    n_scored = n - n_failed
+    report = {"config": config, "n": n, "n_scored": n_scored, "n_failed": n_failed}
     for m in FRACTIONS:
         gaps = [abs(a - b) for a, b in zip(ours[m], ref[m])]
         report[m] = {"rmse": rmse(ours[m], ref[m]),
                      "mean_abs_err": (sum(gaps) / len(gaps)) if gaps else 0.0}
+    # Accuracy is over SCORED examples, not all n (skipped ones aren't "wrong").
     adh_correct = sum(bool(a) == bool(b) for a, b in zip(ours["adherence"], ref["adherence"]))
-    report["adherence"] = {"accuracy": adh_correct / n if n else 0.0}
+    report["adherence"] = {"accuracy": adh_correct / n_scored if n_scored else 0.0}
     return report

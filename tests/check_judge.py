@@ -79,6 +79,36 @@ def test_parse_json_raises_on_garbage():
         pass
 
 
+def test_parse_json_salvages_unescaped_inner_quotes():
+    # The real Colab failure: a 7B model writes an unescaped " inside a value.
+    messy = '{"relevance_explanation": "the term "net 30" applies", "overall_supported": true}'
+    out = parse_label_json(messy)                      # strict parse fails -> salvage pass
+    assert out["overall_supported"] is True
+    assert "net 30" in out["relevance_explanation"]    # content preserved, quotes escaped
+
+
+def test_parse_json_salvage_keeps_lists_and_clean_json_intact():
+    # Salvage must NOT corrupt clean JSON or list values.
+    clean = '{"all_relevant_sentence_keys": ["0a","1b"], "overall_supported": false}'
+    assert parse_label_json(clean) == {"all_relevant_sentence_keys": ["0a", "1b"],
+                                       "overall_supported": False}
+
+
+def test_score_one_skips_a_judge_that_raises():
+    # A judge raising ValueError on bad JSON must be SKIPPED (return None), not crash —
+    # so one bad answer can't kill a whole config's matrix row.
+    from src.runner import _score_one
+    from src.segmentation import OutputSegmenter, RegexSplitter
+
+    class _BadJudge:
+        def label(self, question, keyed):
+            raise ValueError("judge produced unparseable JSON after retries")
+
+    seg = OutputSegmenter(RegexSplitter())
+    ex = {"question": "q?", "_context_texts": ["A sentence. Another."]}
+    assert _score_one(ex, "Some answer.", seg, _BadJudge()) is None    # skipped, no raise
+
+
 def test_build_via_registry():
     assert isinstance(build("judge", "fake"), FakeJudge)
 
