@@ -1,0 +1,31 @@
+# Experiment: grounded prompt + cross-encoder reranker (the "full" baseline).
+#
+# An experiment = a config (AI_CONTEXT §11). This file is the source of truth for
+# one pipeline setup; the runner loops these over the 5 domains -> one matrix row each.
+#
+# In the 4-config starter grid we vary TWO levers, one at a time:
+#   prompt   : grounded   <-> minimal        (the Adherence / anti-hallucination lever)
+#   reranker : cross_encoder <-> none        (the Relevance lever)
+# THIS file = grounded + cross_encoder. Everything else is held FIXED across all 4
+# files so each pairwise difference is attributable to a single component.
+#
+# `domain` here is a placeholder — the runner overrides it per domain via the grid.
+domain: Legal
+
+# --- OFFLINE stages (build the index) ---
+chunker:   { type: fixed, size: 512, overlap: 50 }   # words; baseline. (PGC/DFC later, §13)
+embedder:  { type: minilm }                           # all-MiniLM-L6-v2, 384-dim, CPU-light
+index:     { type: faiss, corpus_mode: per_example }  # per_example = matches reference data
+# NOTE: the index's `dim` is injected at runtime from the embedder — never put it here.
+
+# --- ONLINE stages (answer a query) ---
+retriever: { type: dense, k: 20 }                     # wide net: 20 candidates (k is a call-time arg)
+reranker:  { type: cross_encoder, top_n: 5 }          # re-score (q,chunk) pairs, keep best 5
+repacker:  { type: reverse }                          # best chunk LAST (lost-in-the-middle fix)
+prompt:    { type: grounded }                         # "answer ONLY from context; else refuse"
+generator: { type: hf, model: Qwen/Qwen2.5-3B-Instruct, load_in_4bit: false, max_new_tokens: 256 }
+
+# --- bridge to the evaluator ---
+splitter:  { type: regex }                            # how OUR answer/context is split for the judge
+
+seed: 42

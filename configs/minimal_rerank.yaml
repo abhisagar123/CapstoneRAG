@@ -1,0 +1,19 @@
+# Experiment: MINIMAL prompt + cross-encoder reranker.
+# Pair with grounded_rerank.yaml -> isolates the PROMPT's effect (Adherence lever):
+# does the "answer only from context" instruction actually reduce hallucination?
+# Only `prompt` differs from grounded_rerank.yaml; all else identical.
+domain: Legal
+
+chunker:   { type: fixed, size: 512, overlap: 50 }
+embedder:  { type: minilm }
+index:     { type: faiss, corpus_mode: per_example }
+
+retriever: { type: dense, k: 20 }
+reranker:  { type: cross_encoder, top_n: 5 }
+repacker:  { type: reverse }
+prompt:    { type: minimal }                          # bare context+question, NO grounding instruction
+generator: { type: hf, model: Qwen/Qwen2.5-3B-Instruct, load_in_4bit: false, max_new_tokens: 256 }
+
+splitter:  { type: regex }
+
+seed: 42
