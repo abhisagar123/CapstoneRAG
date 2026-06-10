@@ -149,3 +149,71 @@ def run_matrix(configs, examples_for, out_csv: str, *, segmenter=None, judge=Non
             writer.writerow(row)
             f.flush()                                   # persist immediately (Colab-safe)
             print(f"done: {key}  n={row['n']}  scoring={row['scoring']}")
+
+
+# ── named-matrix runner (shared by nb04 AND scripts/run_matrix.py) ─────────────────
+# Like run_matrix but (a) carries a config_NAME column (the YAML filename) so configs
+# differing only in a param don't collide, and (b) writes each row by RE-OPENING the
+# file (open->write->close) — survives a mid-run file swap, same fix as the judge sweep.
+
+NAMED_FIELDNAMES = ["config_name"] + FIELDNAMES
+
+
+def build_grid(raw_configs: dict, domains, *, generator_override: dict | None = None):
+    """Expand {config_name: raw_yaml_dict} × domains into [(config_name, PipelineConfig)].
+
+    Each config is cloned per domain (overriding `domain`), optionally replacing the
+    generator stage (e.g. to point all configs at one local model). Asserts no two
+    (config_id, domain) pairs collide — config_id is built from stage TYPES, so a
+    param-only difference would silently overwrite a row; this fails loudly instead.
+    """
+    import copy
+    from collections import Counter
+    from .config import from_dict
+
+    grid = []
+    for name, raw in raw_configs.items():
+        for dom in domains:
+            d = copy.deepcopy(raw)
+            d["domain"] = dom
+            if generator_override is not None:
+                d["generator"] = dict(generator_override)
+            grid.append((name, from_dict(d, do_validate=True)))
+
+    clash = [k for k, c in Counter((config_id(cfg), cfg.domain) for _, cfg in grid).items() if c > 1]
+    if clash:
+        raise ValueError(f"config_id collision (would overwrite matrix rows): {clash}")
+    return grid
+
+
+def _named_done(out_csv: str) -> set:
+    """(config_name, domain) pairs already in the CSV — for resume. Re-read each call."""
+    if not os.path.exists(out_csv):
+        return set()
+    with open(out_csv, newline="") as f:
+        return {(r["config_name"], r["domain"]) for r in csv.DictReader(f)}
+
+
+def run_named_matrix(grid, examples_for, out_csv: str, *, segmenter=None, judge=None) -> None:
+    """Run a [(config_name, cfg)] grid -> one CSV row per (config_name, domain).
+
+    Resumable AND file-swap-safe: re-reads the done-set and re-opens the file per row
+    (open->write->close), so a git/IDE replacement mid-run can't orphan writes (the
+    bug that hit the judge sweep). examples_for(cfg) supplies that config's examples.
+    """
+    for name, cfg in grid:
+        if (name, cfg.domain) in _named_done(out_csv):
+            print(f"skip (done): {name} / {cfg.domain}")
+            continue
+        print(f"running {name} on {cfg.domain} ...", flush=True)
+        row = {"config_name": name, **run_experiment(cfg, examples_for(cfg), segmenter=segmenter, judge=judge)}
+        write_header = not os.path.exists(out_csv)
+        with open(out_csv, "a", newline="") as f:          # re-open PER ROW (swap-safe)
+            w = csv.DictWriter(f, fieldnames=NAMED_FIELDNAMES)
+            if write_header:
+                w.writeheader()
+            w.writerow(row)
+            f.flush()
+        print(f"   -> rel={row['relevance']}  util={row['utilization']}  "
+              f"compl={row['completeness']}  adh={row['adherence']}  (scored {row['n_scored']}/{row['n']})")
+    print(f"done. wrote {out_csv}")

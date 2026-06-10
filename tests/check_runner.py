@@ -105,6 +105,44 @@ def test_run_matrix_writes_csv_and_is_resumable():
     os.remove(out)
 
 
+def test_build_grid_distinct_ok_and_collision_raises():
+    from src.runner import build_grid, config_id
+    raw = {"a.yaml": {**BASE, "prompt": {"type": "grounded"}},
+           "b.yaml": {**BASE, "prompt": {"type": "minimal"}}}
+    grid = build_grid(raw, ["Legal"])                       # differ by prompt type -> distinct
+    assert len(grid) == 2 and len({config_id(c) for _, c in grid}) == 2
+    assert [n for n, _ in grid] == ["a.yaml", "b.yaml"]
+
+    # Two configs with the SAME types (differ only by a param) -> collision -> raises.
+    clash = {"x.yaml": {**BASE, "chunker": {"type": "fixed", "size": 200}},
+             "y.yaml": {**BASE, "chunker": {"type": "fixed", "size": 999}}}
+    try:
+        build_grid(clash, ["Legal"])
+        assert False, "expected a collision error"
+    except ValueError as e:
+        assert "collision" in str(e)
+
+
+def test_run_named_matrix_resumable(tmp=None):
+    import csv
+    from src.runner import build_grid, run_named_matrix
+    out = os.path.join(tempfile.gettempdir(), "_check_named_matrix.csv")
+    if os.path.exists(out):
+        os.remove(out)
+    raw = {"a.yaml": {**BASE, "prompt": {"type": "grounded"}},
+           "b.yaml": {**BASE, "prompt": {"type": "minimal"}}}
+    grid = build_grid(raw, ["Legal"])
+    run_named_matrix(grid, lambda cfg: EXAMPLES, out, segmenter=SEG, judge=JUDGE)
+    with open(out, newline="") as f:
+        rows = list(csv.DictReader(f))
+    assert len(rows) == 2 and {r["config_name"] for r in rows} == {"a.yaml", "b.yaml"}
+    assert "config_name" in rows[0] and rows[0]["relevance"] != ""
+    run_named_matrix(grid, lambda cfg: EXAMPLES, out, segmenter=SEG, judge=JUDGE)  # resume
+    with open(out, newline="") as f:
+        assert len(list(csv.DictReader(f))) == 2        # not 4
+    os.remove(out)
+
+
 def _run():
     fns = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
     for fn in fns:
