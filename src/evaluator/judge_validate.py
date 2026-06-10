@@ -28,7 +28,27 @@ def _keyed_from_example(ex) -> dict:
             "response_sentences": ex["response_sentences"]}
 
 
-def validate_judge(judge, config: str, n: int = 50, split: str = "test") -> dict:
+def _judge_one_example(judge, ex, config):
+    """Judge a single example. Returns (scores_dict | None, reference_dict).
+
+    None scores => the judge failed on this example (unparseable JSON after retry);
+    the caller counts it in n_failed and skips it. This is the unit of parallel work —
+    it has NO shared state, so judging examples concurrently is safe; each returns its
+    own (scores, reference) pair and the caller collects them IN ORDER.
+    """
+    keyed = _keyed_from_example(ex)
+    reference = {m: ex[REFERENCE_FIELD[m]] for m in REFERENCE_FIELD}
+    try:
+        label = judge.label(ex["question"], keyed)
+        scores = scores_from_label(keyed, label)
+    except (ValueError, KeyError) as e:
+        print(f"  [skip] {config}: judge failed on one example ({e})")
+        return None, reference
+    return scores, reference
+
+
+def validate_judge(judge, config: str, n: int = 50, split: str = "test",
+                   workers: int = 1) -> dict:
     """Run `judge` on n examples of a config; compare its scores to the reference.
 
     Returns a report: RMSE + mean abs error per fraction, accuracy for adherence,
@@ -38,28 +58,39 @@ def validate_judge(judge, config: str, n: int = 50, split: str = "test") -> dict
     such example must NOT kill the whole config — we skip it, count it in `n_failed`,
     and score the rest. The failure RATE is itself a judge-quality signal (a model that
     fails often is a worse choice), so we surface it rather than hiding it.
+
+    PARALLELISM: `workers` > 1 judges the n examples CONCURRENTLY (one Ollama server with
+    GPU headroom batches them — ~2x faster at workers=3). This is ONLY parallel within
+    THIS config; the caller (run_validation_sweep) still does domains sequentially and
+    writes the CSV from one thread. Order is preserved (executor.map), so ours[i] still
+    pairs with ref[i] — the result is identical to the serial version, just faster.
     """
     from datasets import load_dataset
 
     ds = load_dataset(REPO, config, split=split)
     n = min(n, len(ds))
-    ds = ds.select(range(n))
+    examples = [ds[i] for i in range(n)]
 
+    # Judge every example -> ordered list of (scores|None, reference). Same work whether
+    # serial (workers=1) or concurrent; map() preserves input order either way.
+    if workers > 1:
+        from concurrent.futures import ThreadPoolExecutor
+        with ThreadPoolExecutor(max_workers=workers) as pool:
+            results = list(pool.map(lambda ex: _judge_one_example(judge, ex, config), examples))
+    else:
+        results = [_judge_one_example(judge, ex, config) for ex in examples]
+
+    # Collect IN ORDER. Skipped (None) examples are counted, not scored.
     ours = {m: [] for m in REFERENCE_FIELD}
     ref = {m: [] for m in REFERENCE_FIELD}
     n_failed = 0
-    for ex in ds:
-        keyed = _keyed_from_example(ex)
-        try:
-            label = judge.label(ex["question"], keyed)
-            s = scores_from_label(keyed, label)
-        except (ValueError, KeyError) as e:
-            n_failed += 1                              # unparseable/malformed -> skip, count
-            print(f"  [skip] {config}: judge failed on one example ({e})")
+    for scores, reference in results:
+        if scores is None:
+            n_failed += 1
             continue
         for m in REFERENCE_FIELD:
-            ours[m].append(s[m])
-            ref[m].append(ex[REFERENCE_FIELD[m]])
+            ours[m].append(scores[m])
+            ref[m].append(reference[m])
 
     n_scored = n - n_failed
     report = {"config": config, "n": n, "n_scored": n_scored, "n_failed": n_failed}
@@ -119,7 +150,8 @@ def _flatten_report(report: dict, model: str, prompt_variant: str, domain: str) 
 
 
 def run_validation_sweep(judge, model: str, configs, *, n: int = 50,
-                         conservative: bool = False, split: str = "test") -> str:
+                         conservative: bool = False, split: str = "test",
+                         workers: int = 1) -> str:
     """Validate `judge` over (domain, config) pairs and write a RESUMABLE CSV.
 
     `configs` = list of (domain, config) tuples. `model` is the model NAME (for the
@@ -127,6 +159,11 @@ def run_validation_sweep(judge, model: str, configs, *, n: int = 50,
     object already carries the actual flag). Rows are written + flushed per config and
     already-done (model, config) pairs are SKIPPED, so a re-run resumes. Returns the
     CSV path. This is the ONE implementation nb03 and the local script share.
+
+    `workers` is passed to validate_judge -> judges examples WITHIN each config
+    concurrently (~2x at 3). Domains stay SEQUENTIAL and the CSV is written from this
+    one thread, so domains can never interleave — only same-config examples run in
+    parallel, and their results are recombined in order before the row is written.
     """
     import os
     import csv
@@ -149,8 +186,9 @@ def run_validation_sweep(judge, model: str, configs, *, n: int = 50,
             if (model, config) in done:
                 print(f"skip (done): {model} / {config}")
                 continue
-            print(f"judging {n}x {domain}/{config}  [{model} / {prompt_variant}] ...", flush=True)
-            report = validate_judge(judge, config, n=n, split=split)
+            print(f"judging {n}x {domain}/{config}  [{model} / {prompt_variant}] "
+                  f"(workers={workers}) ...", flush=True)
+            report = validate_judge(judge, config, n=n, split=split, workers=workers)
             w.writerow(_flatten_report(report, model, prompt_variant, domain))
             f.flush()                                       # persist per-config (disconnect-safe)
             rel = report["relevance"]

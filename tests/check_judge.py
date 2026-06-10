@@ -134,6 +134,35 @@ def test_load_judges_registers_ollama():
     assert "ollama" in available("judge")              # local-server judge
 
 
+def test_judge_one_example_pairs_scores_with_own_reference():
+    # The parallel unit of work: must return THIS example's scores paired with THIS
+    # example's reference — never mixing examples (the across/within-domain safety unit).
+    from src.evaluator.judge_validate import _judge_one_example
+    ex = {"question": "q?",
+          "documents_sentences": [[["0a", "Cats are mammals."], ["0b", "Sky is blue."]]],
+          "response_sentences": [["a", "Cats are mammals."]],
+          "relevance_score": 0.5, "utilization_score": 0.5,
+          "completeness_score": 1.0, "adherence_score": True}
+    scores, reference = _judge_one_example(FakeJudge(relevant_frac=1.0), ex, "covidqa")
+    assert reference == {"relevance": 0.5, "utilization": 0.5,
+                         "completeness": 1.0, "adherence": True}   # this example's own ref
+    assert scores is not None and "relevance" in scores
+
+    class _Bad:
+        def label(self, q, k): raise ValueError("bad json")
+    scores2, reference2 = _judge_one_example(_Bad(), ex, "covidqa")
+    assert scores2 is None                                 # failure -> None (skip+count path)
+    assert reference2["adherence"] is True                 # reference still returned
+
+
+def test_validate_judge_accepts_workers_param():
+    # Signature guard: run_validation_sweep + validate_judge both take workers.
+    import inspect
+    from src.evaluator.judge_validate import validate_judge, run_validation_sweep
+    assert "workers" in inspect.signature(validate_judge).parameters
+    assert "workers" in inspect.signature(run_validation_sweep).parameters
+
+
 def test_sweep_csv_path_encodes_model_variant_n():
     # The filename scheme that keeps parallel runs from colliding + lets the verdict glob+merge.
     from src.evaluator.judge_validate import sweep_csv_path
@@ -190,6 +219,8 @@ def test_ollama_judge_posts_and_parses():
     assert CONSERVATIVE_ADDENDUM in captured["payload"]["prompt"]
     assert captured["payload"]["prompt"].startswith("I asked someone to answer")
     assert captured["payload"]["format"] == "json"
+    # num_ctx MUST be sent + large — else Ollama silently truncates long (CUAD) prompts.
+    assert captured["payload"]["options"]["num_ctx"] >= 8192
 
 
 def _run():

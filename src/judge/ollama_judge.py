@@ -27,12 +27,20 @@ DEFAULT_HOST = "http://localhost:11434"
 @register("judge", "ollama")
 class OllamaJudge:
     def __init__(self, model: str = DEFAULT_MODEL, host: str = DEFAULT_HOST,
-                 max_retries: int = 1, conservative: bool = False, timeout: float = 600.0):
+                 max_retries: int = 1, conservative: bool = False, timeout: float = 600.0,
+                 num_ctx: int = 16384):
         self.model = model
         self.host = host.rstrip("/")
         self.max_retries = max_retries
         self.conservative = conservative          # append the conservative steer to the prompt?
         self.timeout = timeout
+        # num_ctx = the runtime context window. CRITICAL: Ollama defaults to only ~2-4k
+        # tokens and SILENTLY TRUNCATES longer prompts. Our judge prompt embeds the full
+        # documents, and CUAD contracts run ~9k (median) to ~41k (max) tokens — so without
+        # a high num_ctx the judge would score a truncated fragment and the agreement
+        # numbers would be meaningless. 16384 covers all short domains + median CUAD; raise
+        # toward 32768 for the longest contracts (costs more RAM/time per call).
+        self.num_ctx = num_ctx
 
     def _generate(self, prompt: str, sample: bool = False) -> str:
         """POST to Ollama's /api/generate and return the raw completion text.
@@ -40,11 +48,12 @@ class OllamaJudge:
         First pass is greedy (temperature 0 — deterministic, best for ground truth).
         On a retry we raise the temperature so the re-generation actually DIFFERS;
         a greedy retry would reproduce the same unparseable text and be pointless.
-        `format: "json"` nudges Ollama to emit a single JSON object.
+        `format: "json"` nudges Ollama to emit a single JSON object. num_ctx must be
+        large enough for the whole prompt (else Ollama silently truncates the input).
         """
         import httpx
 
-        options = {"temperature": 0.3 if sample else 0.0}
+        options = {"temperature": 0.3 if sample else 0.0, "num_ctx": self.num_ctx}
         payload = {"model": self.model, "prompt": prompt, "stream": False,
                    "format": "json", "options": options}
         resp = httpx.post(f"{self.host}/api/generate", json=payload, timeout=self.timeout)

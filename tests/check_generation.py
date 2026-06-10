@@ -87,6 +87,7 @@ def test_ollama_generator_posts_and_parses(monkeypatch=None):
     assert captured["payload"]["stream"] is False
     assert captured["payload"]["options"]["num_predict"] == 42
     assert captured["payload"]["options"]["temperature"] == 0.0
+    assert captured["payload"]["options"]["num_ctx"] >= 8192    # avoid silent truncation
 
 
 # ---------------- MODEL (real LLM — run on Colab) ----------------
