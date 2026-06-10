@@ -190,6 +190,8 @@ def test_ollama_judge_posts_and_parses():
     assert CONSERVATIVE_ADDENDUM in captured["payload"]["prompt"]
     assert captured["payload"]["prompt"].startswith("I asked someone to answer")
     assert captured["payload"]["format"] == "json"
+    # num_ctx MUST be sent + large — else Ollama silently truncates long (CUAD) prompts.
+    assert captured["payload"]["options"]["num_ctx"] >= 8192
 
 
 def _run():
