@@ -31,18 +31,24 @@ def _keyed_from_example(ex) -> dict:
 def _judge_one_example(judge, ex, config):
     """Judge a single example. Returns (scores_dict | None, reference_dict).
 
-    None scores => the judge failed on this example (unparseable JSON after retry);
-    the caller counts it in n_failed and skips it. This is the unit of parallel work —
-    it has NO shared state, so judging examples concurrently is safe; each returns its
-    own (scores, reference) pair and the caller collects them IN ORDER.
+    None scores => the judge failed on this example; the caller counts it in n_failed
+    and skips it. This is the unit of parallel work — it has NO shared state, so judging
+    examples concurrently is safe; each returns its own (scores, reference) pair and the
+    caller collects them IN ORDER.
+
+    We catch ANY exception, not just bad-JSON (ValueError/KeyError). A judge call can
+    also time out or drop the connection — e.g. a giant CUAD contract that exceeds the
+    HTTP timeout (httpx.ReadTimeout). One slow/stuck example must NOT crash the whole
+    sweep (it did, before this); skip + count it like any other failure. A KeyboardInterrupt
+    is NOT an Exception subclass, so Ctrl-C still stops the run cleanly.
     """
     keyed = _keyed_from_example(ex)
     reference = {m: ex[REFERENCE_FIELD[m]] for m in REFERENCE_FIELD}
     try:
         label = judge.label(ex["question"], keyed)
         scores = scores_from_label(keyed, label)
-    except (ValueError, KeyError) as e:
-        print(f"  [skip] {config}: judge failed on one example ({e})")
+    except Exception as e:
+        print(f"  [skip] {config}: judge failed on one example ({type(e).__name__}: {e})")
         return None, reference
     return scores, reference
 

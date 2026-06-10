@@ -105,19 +105,43 @@ def test_parse_json_salvage_keeps_lists_and_clean_json_intact():
                                        "overall_supported": False}
 
 
+class _Timeout(Exception):
+    """Stand-in for httpx.ReadTimeout — a NON-(ValueError/KeyError) judge failure."""
+
+
 def test_score_one_skips_a_judge_that_raises():
-    # A judge raising ValueError on bad JSON must be SKIPPED (return None), not crash —
-    # so one bad answer can't kill a whole config's matrix row.
+    # A judge that raises must be SKIPPED (return None), not crash — so one bad answer
+    # can't kill a whole config's matrix row. Covers BOTH bad-JSON (ValueError) AND a
+    # network timeout (the CUAD failure that actually crashed a run).
     from src.runner import _score_one
     from src.segmentation import OutputSegmenter, RegexSplitter
-
-    class _BadJudge:
-        def label(self, question, keyed):
-            raise ValueError("judge produced unparseable JSON after retries")
-
     seg = OutputSegmenter(RegexSplitter())
     ex = {"question": "q?", "_context_texts": ["A sentence. Another."]}
-    assert _score_one(ex, "Some answer.", seg, _BadJudge()) is None    # skipped, no raise
+
+    class _BadJSON:
+        def label(self, q, k): raise ValueError("unparseable JSON after retries")
+
+    class _Slow:
+        def label(self, q, k): raise _Timeout("timed out")
+
+    assert _score_one(ex, "Some answer.", seg, _BadJSON()) is None     # JSON failure -> skip
+    assert _score_one(ex, "Some answer.", seg, _Slow()) is None        # timeout -> skip (was a crash)
+
+
+def test_judge_one_example_skips_timeout():
+    # The sweep's parallel unit must also treat a timeout as skip-and-count, not fatal.
+    from src.evaluator.judge_validate import _judge_one_example
+    ex = {"question": "q?",
+          "documents_sentences": [[["0a", "A."]]], "response_sentences": [["a", "A."]],
+          "relevance_score": 0.0, "utilization_score": 0.0,
+          "completeness_score": 1.0, "adherence_score": True}
+
+    class _Slow:
+        def label(self, q, k): raise _Timeout("timed out")
+
+    scores, reference = _judge_one_example(_Slow(), ex, "cuad")
+    assert scores is None                              # skipped, not raised
+    assert reference["adherence"] is True              # reference still returned for alignment
 
 
 def test_build_via_registry():
