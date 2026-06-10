@@ -20,13 +20,15 @@ DEFAULT_MODEL = "meta-llama/Meta-Llama-3-8B-Instruct"
 @register("judge", "hf")
 class HuggingFaceJudge:
     def __init__(self, model: str = DEFAULT_MODEL, max_new_tokens: int = 1024,
-                 load_in_4bit: bool = False, max_retries: int = 1):
+                 load_in_4bit: bool = False, max_retries: int = 1,
+                 conservative: bool = False):
         import torch
         from transformers import AutoModelForCausalLM, AutoTokenizer
 
         self.model_name = model
         self.max_new_tokens = max_new_tokens
         self.max_retries = max_retries
+        self.conservative = conservative          # append the conservative steer to the prompt?
         self.tokenizer = AutoTokenizer.from_pretrained(model)
         kwargs = {}
         if load_in_4bit:
@@ -53,7 +55,7 @@ class HuggingFaceJudge:
         return self.tokenizer.decode(new, skip_special_tokens=True)
 
     def label(self, question: str, keyed: dict) -> dict:
-        prompt = build_prompt(question, keyed)
+        prompt = build_prompt(question, keyed, conservative=self.conservative)
         last_err = None
         for attempt in range(self.max_retries + 1):
             raw = self._generate(prompt, sample=(attempt > 0))   # greedy first, then sample

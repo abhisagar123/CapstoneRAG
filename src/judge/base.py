@@ -141,6 +141,30 @@ class Judge(Protocol):
         ...
 
 
+# ── conservative steer (optional addendum — targets a MEASURED bias) ──────────────
+# Validation (Qwen2.5-7B, N=50, 4 domains) showed the judge SYSTEMATICALLY over-marks:
+# relevance signed-error was +0.06..+0.26 (always positive → too many sentences called
+# relevant) and adherence over-flags swamped under-flags (e.g. covidqa 24 vs 3 → too
+# eager to call answers unsupported). Both are the same behaviour: a LOOSER threshold
+# than the GPT-4 reference. This addendum makes the prompt's existing "omit if removable"
+# instruction louder, to pull that threshold toward the reference. Kept SEPARATE and
+# appended (never edits the verbatim Appendix-7.4 prompt) so "baseline vs conservative"
+# is a clean, reportable A/B. Used only when conservative=True.
+CONSERVATIVE_ADDENDUM = '''
+
+IMPORTANT — be strict and conservative in your judgements:
+- For all_relevant_sentence_keys: include a sentence ONLY if it directly provides
+  information needed to answer the question. EXCLUDE sentences that merely restate or
+  rephrase the question, give titles/headings/citations/author names, or are about the
+  general topic without contributing a fact used to answer it. If removing a sentence
+  would not reduce someone's ability to answer the question, OMIT it.
+- For overall_supported and fully_supported: judge an answer sentence as supported
+  unless it CLEARLY contradicts or has no basis in the documents. Do not flag a sentence
+  as unsupported merely because the wording differs from the documents or the support is
+  paraphrased — only flag a genuine, clear lack of support.
+When in doubt, prefer FEWER relevant keys and prefer marking answers as supported.'''
+
+
 # ── prompt assembly ──────────────────────────────────────────────────────────────
 
 def _render_doc_lines(documents_sentences) -> str:
@@ -156,13 +180,18 @@ def _render_response_lines(response_sentences) -> str:
     return "\n".join(f"{key}. {text}" for key, text in response_sentences)
 
 
-def build_prompt(question: str, keyed: dict) -> str:
-    """Fill the Appendix-7.4 template with this example's keyed docs + answer."""
-    return APPENDIX_7_4_PROMPT.format(
+def build_prompt(question: str, keyed: dict, *, conservative: bool = False) -> str:
+    """Fill the Appendix-7.4 template with this example's keyed docs + answer.
+
+    conservative=True appends CONSERVATIVE_ADDENDUM (the verbatim Appendix-7.4 text is
+    unchanged) to counter the measured over-marking bias — an A/B arm, off by default.
+    """
+    prompt = APPENDIX_7_4_PROMPT.format(
         documents=_render_doc_lines(keyed["documents_sentences"]),
         question=question,
         answer=_render_response_lines(keyed["response_sentences"]),
     )
+    return prompt + CONSERVATIVE_ADDENDUM if conservative else prompt
 
 
 # ── robust JSON extraction (OSS models often wrap JSON in prose/markdown) ─────────

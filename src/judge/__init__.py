@@ -13,7 +13,8 @@ HEAVY-DEP SPLIT (same as embeddings/generation):
 """
 
 from .base import (  # noqa: F401 — shared contract + helpers
-    Judge, build_prompt, parse_label_json, scores_from_label, APPENDIX_7_4_PROMPT,
+    Judge, build_prompt, parse_label_json, scores_from_label,
+    APPENDIX_7_4_PROMPT, CONSERVATIVE_ADDENDUM,
 )
 
 from . import fake_judge  # noqa: F401 — registers FakeJudge ("fake"), no model
