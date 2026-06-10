@@ -1,0 +1,2 @@
+model,prompt_variant,domain,config,n,n_scored,n_failed,relevance_rmse,relevance_mae,relevance_signed,utilization_rmse,utilization_mae,utilization_signed,completeness_rmse,completeness_mae,completeness_signed,adherence_acc,adherence_over_flag,adherence_under_flag
+llama3.1:8b,baseline,Biomedical,covidqa,50,50,0,0.17555406938606713,0.12549155897896155,-0.001029319635917264,0.20831061795629077,0.14726883696269166,-0.000719074607370009,0.5105418179207312,0.39376190476190476,-0.16742857142857143,0.74,10,3

@@ -82,6 +82,8 @@ def main():
     ap.add_argument("--n", type=int, default=50, help="examples per config")
     ap.add_argument("--conservative", action="store_true", help="append the conservative steer")
     ap.add_argument("--with-cuad", action="store_true", help="also validate Legal/cuad (slow)")
+    ap.add_argument("--workers", type=int, default=3,
+                    help="judge examples concurrently within each config (~2x at 3; 1 = serial)")
     ap.add_argument("--verdict", action="store_true", help="just print the merged summary and exit")
     args = ap.parse_args()
 
@@ -94,10 +96,11 @@ def main():
     if args.with_cuad:
         configs.insert(2, ("Legal", "cuad"))
 
-    print(f"backend={args.backend}  model={args.model}  N={args.n}  "
+    print(f"backend={args.backend}  model={args.model}  N={args.n}  workers={args.workers}  "
           f"conservative={args.conservative}  configs={[c for _, c in configs]}\n")
     judge = build_judge(args.backend, args.model, args.conservative)
-    run_validation_sweep(judge, args.model, configs, n=args.n, conservative=args.conservative)
+    run_validation_sweep(judge, args.model, configs, n=args.n,
+                         conservative=args.conservative, workers=args.workers)
     print("\n--- verdict so far ---")
     print_verdict()
 
