@@ -35,7 +35,7 @@ retriever: { type: dense, k: 20 }                      # k = candidates to retri
 reranker:  { type: cross_encoder, top_n: 5 }           # or { type: none, top_n: 5 }
 repacker:  { type: reverse }                           # forward | reverse | sides
 prompt:    { type: grounded }                          # grounded | minimal
-generator: { type: hf, model: Qwen/Qwen2.5-3B-Instruct, load_in_4bit: false, max_new_tokens: 256 }
+generator: { type: ollama, model: llama3.1:8b, max_new_tokens: 256 }   # local (Ollama); or type: hf for Colab
 splitter:  { type: regex }                             # how our output is split for the judge
 seed: 42
 ```
@@ -48,11 +48,14 @@ seed: 42
   retriever/reranker `params` but the pipeline pulls them out before building the stage.
 - **`reranker` and `repacker` are optional** — set to `null` to skip the stage entirely.
   All other stages are required.
-- **Heavy types register lazily.** `minilm` (embedder), `hf` (generator), `cross_encoder`
-  (reranker) only appear in the registry after the matching `load_embedders()` /
-  `load_generators()` / `load_rerankers()` call. So **validate configs only after those
-  loads** (on Colab). Light types (`fixed`, `faiss`, `dense`, `none`, `reverse`,
-  `grounded`, `minimal`, `regex`, `echo`, `fake`) are available on bare `import src`.
+- **Generator backends:** `ollama` (local Ollama server — Mac; non-Chinese models like
+  `llama3.1:8b`, `mistral`, `gemma2:9b`) or `hf` (in-process transformers; Colab GPU).
+  `echo` is the no-model test stub.
+- **Heavy/lazy types.** `minilm` (embedder), `hf` (generator), `cross_encoder` (reranker),
+  and the real judges (`hf`, `ollama`) only appear in the registry after the matching
+  `load_embedders()` / `load_generators()` / `load_rerankers()` / `load_judges()` call. So
+  **validate configs only after those loads.** Light types (`fixed`, `faiss`, `dense`,
+  `none`, `reverse`, `grounded`, `minimal`, `regex`, `echo`, `fake`) are on bare `import src`.
 
 ## Adding a config
 

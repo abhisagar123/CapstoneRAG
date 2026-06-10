@@ -36,8 +36,10 @@ The system addresses two tasks:
 2. **A hosted/closed LLM (e.g. OpenAI) is allowed *only* as an evaluation judge** — never for
    generation or retrieval.
 3. **Metrics implemented by us** from the papers' formulas.
-4. **Compute = Google Colab** (free / Pro); design around a single mid-tier GPU. **All model inference
-   (embedder, reranker, generator) runs on Colab — a runtime constraint means models are not run locally.**
+4. **Compute (revised 10 Jun 2026): open-source models may run LOCALLY, EXCEPT Chinese models.** On the
+   dev Mac (Apple M3 Max / 96 GB) the local path is **Ollama** (non-Chinese models: Llama / Mistral / Gemma);
+   **Google Colab** (free / Pro) remains the alternative for the in-process `transformers` path. Earlier
+   ("all models on Colab") and the Qwen default are both retired — **use non-Chinese models only.**
    Pure-Python work (data loading, chunking, indexing, repacking, prompting, the TRACe arithmetic) and all
    offline tests run locally; model-dependent checks run on Colab via a runner notebook.
 5. **All 5 domains** covered by one config-driven pipeline.
@@ -175,8 +177,8 @@ only place subjective error can enter — so that's where validation effort conc
 | Vector store | FAISS / ChromaDB | local, simple |
 | Sparse / fusion | `rank-bm25` + RRF | for hybrid retrieval |
 | Reranker | cross-encoder MiniLM / monoT5 | |
-| Generator | Qwen2.5-7B / Llama-3.1-8B (4-bit) | Qwen2.5-3B for fast dev |
-| Judge | strong OSS model on Colab (Appendix-7.4 prompt); OpenAI later | validate vs reference scores first |
+| Generator | Llama-3.1-8B / Mistral-7B | Llama-3.2-3B for fast dev; **non-Chinese models only** |
+| Judge | strong non-Chinese OSS model, local (Ollama) or Colab (Appendix-7.4 prompt); OpenAI later | validate vs reference scores first |
 | Demo | Gradio | |
 
 ## 10. Domain-awareness (why "one pipeline" still adapts per domain)

@@ -52,6 +52,43 @@ def test_load_generators_registers_hf():
     assert "hf" in available("generator")              # registered, not constructed
 
 
+def test_load_generators_registers_ollama():
+    load_generators()
+    assert "ollama" in available("generator")          # local-server backend
+
+
+def test_ollama_generator_posts_and_parses(monkeypatch=None):
+    # OFFLINE: mock httpx.post so we verify the request + response handling with NO server.
+    import httpx
+    from src.generation.ollama_generator import OllamaGenerator
+
+    captured = {}
+
+    class _FakeResp:
+        def raise_for_status(self): pass
+        def json(self): return {"response": "Paris is the capital."}
+
+    def _fake_post(url, json=None, timeout=None):
+        captured["url"] = url
+        captured["payload"] = json
+        return _FakeResp()
+
+    orig = httpx.post
+    httpx.post = _fake_post
+    try:
+        g = OllamaGenerator(model="llama3.1:8b", max_new_tokens=42, temperature=0.0)
+        out = g.generate("Question: capital of France?\nAnswer:")
+    finally:
+        httpx.post = orig                              # always restore
+
+    assert out == "Paris is the capital."              # parsed the 'response' field
+    assert captured["url"].endswith("/api/generate")
+    assert captured["payload"]["model"] == "llama3.1:8b"
+    assert captured["payload"]["stream"] is False
+    assert captured["payload"]["options"]["num_predict"] == 42
+    assert captured["payload"]["options"]["temperature"] == 0.0
+
+
 # ---------------- MODEL (real LLM — run on Colab) ----------------
 
 def test_hf_generator_produces_text():
@@ -68,7 +105,9 @@ def _run():
                test_echo_generator_interface_and_output,
                test_echo_handles_prompt_without_question,
                test_build_echo_via_registry,
-               test_load_generators_registers_hf]
+               test_load_generators_registers_hf,
+               test_load_generators_registers_ollama,
+               test_ollama_generator_posts_and_parses]
     model = [test_hf_generator_produces_text]
 
     for fn in offline:
