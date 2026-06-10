@@ -172,28 +172,47 @@ def run_validation_sweep(judge, model: str, configs, *, n: int = 50,
     out = sweep_csv_path(model, prompt_variant, n)
     os.makedirs(os.path.dirname(out), exist_ok=True)
 
-    done = set()
-    if os.path.exists(out):
-        with open(out, newline="") as f:
-            done = {(r["model"], r["config"]) for r in csv.DictReader(f)}
+    for domain, config in configs:
+        # Recompute `done` from the CURRENT on-disk file each iteration (not once up
+        # front) so resume is correct even if the file changed between configs.
+        done = _read_done(out)
+        if (model, config) in done:
+            print(f"skip (done): {model} / {config}")
+            continue
+        print(f"judging {n}x {domain}/{config}  [{model} / {prompt_variant}] "
+              f"(workers={workers}) ...", flush=True)
+        report = validate_judge(judge, config, n=n, split=split, workers=workers)
+        # Re-open in append mode PER ROW (open -> write -> close). A long run that held
+        # one handle open got orphaned when the file was swapped mid-run (git/IDE replaced
+        # it -> writes went to a dead inode). Re-opening always targets the live file.
+        _append_row(out, _flatten_report(report, model, prompt_variant, domain))
+        rel = report["relevance"]
+        print(f"   -> rel_rmse={rel['rmse']:.3f} (signed {rel['signed_err']:+.3f})  "
+              f"adh_acc={report['adherence']['accuracy']:.2f}  "
+              f"(scored {report['n_scored']}/{report['n']}, {report['n_failed']} unparseable)")
+    print(f"done. wrote {out}")
+    return out
 
-    write_header = not os.path.exists(out)
-    with open(out, "a", newline="") as f:
+
+def _read_done(path: str) -> set:
+    """The (model, config) pairs already in the CSV — for resume. Empty if no file."""
+    import os
+    import csv
+    if not os.path.exists(path):
+        return set()
+    with open(path, newline="") as f:
+        return {(r["model"], r["config"]) for r in csv.DictReader(f)}
+
+
+def _append_row(path: str, row: dict) -> None:
+    """Append ONE row, opening + closing the file each call (survives a mid-run file
+    swap). Writes the header first if the file doesn't exist yet."""
+    import os
+    import csv
+    write_header = not os.path.exists(path)
+    with open(path, "a", newline="") as f:
         w = csv.DictWriter(f, fieldnames=SWEEP_COLS)
         if write_header:
             w.writeheader()
-        for domain, config in configs:
-            if (model, config) in done:
-                print(f"skip (done): {model} / {config}")
-                continue
-            print(f"judging {n}x {domain}/{config}  [{model} / {prompt_variant}] "
-                  f"(workers={workers}) ...", flush=True)
-            report = validate_judge(judge, config, n=n, split=split, workers=workers)
-            w.writerow(_flatten_report(report, model, prompt_variant, domain))
-            f.flush()                                       # persist per-config (disconnect-safe)
-            rel = report["relevance"]
-            print(f"   -> rel_rmse={rel['rmse']:.3f} (signed {rel['signed_err']:+.3f})  "
-                  f"adh_acc={report['adherence']['accuracy']:.2f}  "
-                  f"(scored {report['n_scored']}/{report['n']}, {report['n_failed']} unparseable)")
-    print(f"done. wrote {out}")
-    return out
+        w.writerow(row)
+        f.flush()
