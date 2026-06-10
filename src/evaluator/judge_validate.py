@@ -84,3 +84,78 @@ def validate_judge(judge, config: str, n: int = 50, split: str = "test") -> dict
     report["adherence"] = {"accuracy": adh_correct / n_scored if n_scored else 0.0,
                            "over_flag": over_flag, "under_flag": under_flag}
     return report
+
+
+# ── the resumable sweep + CSV writer (shared by nb03 AND scripts/run_judge_validation.py) ──
+# Kept here so the notebook and the local script call ONE implementation and can't drift.
+
+SWEEP_COLS = ["model", "prompt_variant", "domain", "config", "n", "n_scored", "n_failed",
+              "relevance_rmse", "relevance_mae", "relevance_signed",
+              "utilization_rmse", "utilization_mae", "utilization_signed",
+              "completeness_rmse", "completeness_mae", "completeness_signed",
+              "adherence_acc", "adherence_over_flag", "adherence_under_flag"]
+
+
+def sweep_csv_path(model: str, prompt_variant: str, n: int) -> str:
+    """results/judge_validation__{model-slug}__{variant}__n{N}.csv — one file per
+    (model, variant, N) so parallel runs never collide and the verdict cell can glob+merge."""
+    import re
+    slug = re.sub(r"[^a-zA-Z0-9]+", "-", model).strip("-").lower()
+    return f"results/judge_validation__{slug}__{prompt_variant}__n{n}.csv"
+
+
+def _flatten_report(report: dict, model: str, prompt_variant: str, domain: str) -> dict:
+    r = {"model": model, "prompt_variant": prompt_variant, "domain": domain,
+         "config": report["config"], "n": report["n"],
+         "n_scored": report["n_scored"], "n_failed": report["n_failed"]}
+    for m in FRACTIONS:
+        r[f"{m}_rmse"] = report[m]["rmse"]
+        r[f"{m}_mae"] = report[m]["mean_abs_err"]
+        r[f"{m}_signed"] = report[m]["signed_err"]          # + => judge OVER-marks vs reference
+    r["adherence_acc"] = report["adherence"]["accuracy"]
+    r["adherence_over_flag"] = report["adherence"]["over_flag"]
+    r["adherence_under_flag"] = report["adherence"]["under_flag"]
+    return r
+
+
+def run_validation_sweep(judge, model: str, configs, *, n: int = 50,
+                         conservative: bool = False, split: str = "test") -> str:
+    """Validate `judge` over (domain, config) pairs and write a RESUMABLE CSV.
+
+    `configs` = list of (domain, config) tuples. `model` is the model NAME (for the
+    filename + a CSV column); `conservative` only labels the variant here (the judge
+    object already carries the actual flag). Rows are written + flushed per config and
+    already-done (model, config) pairs are SKIPPED, so a re-run resumes. Returns the
+    CSV path. This is the ONE implementation nb03 and the local script share.
+    """
+    import os
+    import csv
+
+    prompt_variant = "conservative" if conservative else "baseline"
+    out = sweep_csv_path(model, prompt_variant, n)
+    os.makedirs(os.path.dirname(out), exist_ok=True)
+
+    done = set()
+    if os.path.exists(out):
+        with open(out, newline="") as f:
+            done = {(r["model"], r["config"]) for r in csv.DictReader(f)}
+
+    write_header = not os.path.exists(out)
+    with open(out, "a", newline="") as f:
+        w = csv.DictWriter(f, fieldnames=SWEEP_COLS)
+        if write_header:
+            w.writeheader()
+        for domain, config in configs:
+            if (model, config) in done:
+                print(f"skip (done): {model} / {config}")
+                continue
+            print(f"judging {n}x {domain}/{config}  [{model} / {prompt_variant}] ...", flush=True)
+            report = validate_judge(judge, config, n=n, split=split)
+            w.writerow(_flatten_report(report, model, prompt_variant, domain))
+            f.flush()                                       # persist per-config (disconnect-safe)
+            rel = report["relevance"]
+            print(f"   -> rel_rmse={rel['rmse']:.3f} (signed {rel['signed_err']:+.3f})  "
+                  f"adh_acc={report['adherence']['accuracy']:.2f}  "
+                  f"(scored {report['n_scored']}/{report['n']}, {report['n_failed']} unparseable)")
+    print(f"done. wrote {out}")
+    return out
