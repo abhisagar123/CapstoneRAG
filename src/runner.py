@@ -55,11 +55,13 @@ def _score_one(example, answer: str, segmenter: OutputSegmenter, judge) -> dict 
     try:
         label = judge.label(example["question"], keyed)   # judge returns RAGBench-style label dict
         return scores_from_label(keyed, label)
-    except (ValueError, KeyError) as e:
-        # OSS judge emitted unparseable/malformed JSON even after retry. Skip this ONE
-        # answer rather than crash the whole config's matrix row; the caller counts it
-        # via (n - n_scored). Same robustness rule as evaluator/judge_validate.py.
-        print(f"  [skip] judge failed on one example ({e})")
+    except Exception as e:
+        # The judge can fail in many ways: unparseable JSON (ValueError/KeyError) OR a
+        # network timeout/drop (e.g. httpx.ReadTimeout on a giant context). ANY of these
+        # must skip this ONE answer, not crash the whole config's matrix row; the caller
+        # counts it via (n - n_scored). (KeyboardInterrupt isn't an Exception, so Ctrl-C
+        # still stops cleanly.) Same robustness rule as evaluator/judge_validate.py.
+        print(f"  [skip] judge failed on one example ({type(e).__name__}: {e})")
         return None
 
 
