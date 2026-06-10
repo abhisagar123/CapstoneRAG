@@ -79,6 +79,17 @@ def test_parse_json_raises_on_garbage():
         pass
 
 
+def test_conservative_addendum_is_optional_and_appended():
+    # Baseline must be the VERBATIM Appendix-7.4 prompt (no addendum) — clean A/B control.
+    base = build_prompt("q?", KEYED)
+    cons = build_prompt("q?", KEYED, conservative=True)
+    from src.judge import CONSERVATIVE_ADDENDUM
+    assert CONSERVATIVE_ADDENDUM not in base                 # baseline untouched
+    assert base.startswith("I asked someone to answer")      # still the real prompt
+    assert cons.startswith(base) and cons.endswith(CONSERVATIVE_ADDENDUM)  # extends, not alters
+    assert "strict and conservative" in cons
+
+
 def test_parse_json_salvages_unescaped_inner_quotes():
     # The real Colab failure: a 7B model writes an unescaped " inside a value.
     messy = '{"relevance_explanation": "the term "net 30" applies", "overall_supported": true}'
