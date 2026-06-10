@@ -33,7 +33,8 @@ def build_judge(backend, model):
     from src.registry import build
     load_judges()
     if backend == "ollama":
-        return build("judge", "ollama", {"model": model, "max_new_tokens": 1536})
+        # OllamaJudge takes no max_new_tokens (output is bounded; num_ctx sizes the window).
+        return build("judge", "ollama", {"model": model})
     return build("judge", "hf", {"model": model, "load_in_4bit": True, "max_new_tokens": 1536})
 
 
