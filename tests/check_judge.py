@@ -134,6 +134,29 @@ def test_load_judges_registers_ollama():
     assert "ollama" in available("judge")              # local-server judge
 
 
+def test_sweep_csv_path_encodes_model_variant_n():
+    # The filename scheme that keeps parallel runs from colliding + lets the verdict glob+merge.
+    from src.evaluator.judge_validate import sweep_csv_path
+    p = sweep_csv_path("meta-llama/Llama-3.1-8B-Instruct", "conservative", 50)
+    assert p == "results/judge_validation__meta-llama-llama-3-1-8b-instruct__conservative__n50.csv"
+    # different model / variant / n -> different file (no clobbering)
+    assert sweep_csv_path("mistral", "baseline", 50) != p
+
+
+def test_flatten_report_matches_sweep_cols():
+    # The flattened row must have EXACTLY the CSV columns (schema guard — both nb03 and
+    # the local script depend on this).
+    from src.evaluator.judge_validate import _flatten_report, SWEEP_COLS
+    fake_report = {"config": "covidqa", "n": 5, "n_scored": 5, "n_failed": 0,
+                   "relevance": {"rmse": 0.1, "mean_abs_err": 0.08, "signed_err": 0.05},
+                   "utilization": {"rmse": 0.1, "mean_abs_err": 0.08, "signed_err": 0.05},
+                   "completeness": {"rmse": 0.1, "mean_abs_err": 0.08, "signed_err": 0.0},
+                   "adherence": {"accuracy": 0.8, "over_flag": 1, "under_flag": 0}}
+    row = _flatten_report(fake_report, "llama3.1:8b", "baseline", "Biomedical")
+    assert set(row.keys()) == set(SWEEP_COLS)           # exact schema match
+    assert row["relevance_signed"] == 0.05 and row["adherence_over_flag"] == 1
+
+
 def test_ollama_judge_posts_and_parses():
     # OFFLINE: mock httpx.post so we exercise the judge with NO server. Confirms it
     # sends the Appendix-7.4 prompt (with conservative steer) and parses the JSON.
