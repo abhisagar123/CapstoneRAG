@@ -129,6 +129,46 @@ def test_load_judges_registers_hf():
     assert "hf" in available("judge")
 
 
+def test_load_judges_registers_ollama():
+    load_judges()
+    assert "ollama" in available("judge")              # local-server judge
+
+
+def test_ollama_judge_posts_and_parses():
+    # OFFLINE: mock httpx.post so we exercise the judge with NO server. Confirms it
+    # sends the Appendix-7.4 prompt (with conservative steer) and parses the JSON.
+    import httpx
+    from src.judge import CONSERVATIVE_ADDENDUM
+    from src.judge.ollama_judge import OllamaJudge
+
+    captured = {}
+    label_json = ('{"all_relevant_sentence_keys": ["0a"], '
+                  '"all_utilized_sentence_keys": ["0a"], "overall_supported": true}')
+
+    class _FakeResp:
+        def raise_for_status(self): pass
+        def json(self): return {"response": label_json}
+
+    def _fake_post(url, json=None, timeout=None):
+        captured["payload"] = json
+        return _FakeResp()
+
+    orig = httpx.post
+    httpx.post = _fake_post
+    try:
+        j = OllamaJudge(model="llama3.1:8b", conservative=True)
+        out = j.label("What is the notice period?", KEYED)
+    finally:
+        httpx.post = orig
+
+    assert out["overall_supported"] is True            # parsed the label JSON
+    assert out["all_relevant_sentence_keys"] == ["0a"]
+    # conservative steer + verbatim Appendix-7.4 both went into the prompt
+    assert CONSERVATIVE_ADDENDUM in captured["payload"]["prompt"]
+    assert captured["payload"]["prompt"].startswith("I asked someone to answer")
+    assert captured["payload"]["format"] == "json"
+
+
 def _run():
     fns = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
     for fn in fns:

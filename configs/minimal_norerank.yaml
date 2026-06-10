@@ -11,7 +11,7 @@ retriever: { type: dense, k: 20 }
 reranker:  { type: none, top_n: 5 }
 repacker:  { type: reverse }
 prompt:    { type: minimal }
-generator: { type: hf, model: Qwen/Qwen2.5-3B-Instruct, load_in_4bit: false, max_new_tokens: 256 }
+generator: { type: ollama, model: llama3.1:8b, max_new_tokens: 256 }   # local (Ollama); non-Chinese
 
 splitter:  { type: regex }
 

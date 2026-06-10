@@ -32,8 +32,8 @@ then bonus.
 | Sparse retrieval | `rank-bm25` | for hybrid |
 | Hybrid fusion | Reciprocal Rank Fusion (RRF) | |
 | Reranker | `cross-encoder/ms-marco-MiniLM-L-6-v2` (fast) | compare `castorini/monot5-base-msmarco` |
-| Generator (open-source) | `Qwen2.5-7B-Instruct` or `Llama-3.1-8B-Instruct`, 4-bit (bitsandbytes) | use `Qwen2.5-3B-Instruct` for fast dev iterations |
-| Evaluation judge | OpenAI `gpt-4o-mini` (cheap, judge-only) | the only permitted closed model |
+| Generator (open-source) | `Llama-3.1-8B-Instruct` or `Mistral-7B-Instruct` (local via Ollama on Mac, or 4-bit on Colab) | `Llama-3.2-3B` for fast dev. **Non-Chinese models only** (no Qwen) |
+| Evaluation judge | strong non-Chinese OSS model (Appendix-7.4 prompt) — local Ollama or Colab | OpenAI can drop in later via the same interface |
 | Demo | Gradio on Hugging Face Spaces | FastAPI optional |
 | Orchestration | plain Python modules | LangChain/LlamaIndex optional, only if they save time |
 
@@ -142,7 +142,7 @@ rag-capstone/
   - [ ] Information Integration — accuracy (exact match).
   - [ ] Negative Rejection — rejection rate (model emits the instructed refusal).
   - [ ] Counterfactual Robustness — error detection rate & correction rate.
-- [ ] Run **4–5 open-source LLMs** (e.g. Qwen2.5-7B, Llama-3.1-8B, Mistral-7B, Phi-3-mini, Gemma-2-9B) — only ~1000 questions, so feasible in 4-bit on Colab.
+- [ ] Run **4–5 open-source LLMs** (non-Chinese: e.g. Llama-3.1-8B, Mistral-7B, Gemma-2-9B, Phi-3-mini) — only ~1000 questions, feasible locally via Ollama or in 4-bit on Colab.
 - [ ] Tabulate results per ability per model + short analysis.
 
 **Deliverable (Review #2):** RGB scores across models + analysis.
@@ -172,7 +172,7 @@ rag-capstone/
 
 ## Suggested work split (3 members, shared infra first)
 - **Weeks 1–2 (together):** repo, data loader, EDA, and the TRACe evaluator — build these jointly since everything depends on them.
-- **Weeks 3–5 (split by domain):** e.g. Aabha → Biomedical + General Knowledge; Abhi → Legal + Customer Support; Surya → Finance + owns the shared pipeline/indexer. Each runs ablations on their domains into a shared results sheet.
+- **Weeks 3–5 (split by domain):** e.g. member 1 → Biomedical + General Knowledge; member 2 → Legal + Customer Support; member 3 → Finance + owns the shared pipeline/indexer. Each runs ablations on their domains into a shared results sheet.
 - **Weeks 6–7:** one person leads RGB while the other two finish RAGBench analysis & the report draft.
 - **Weeks 8–9 (together):** deployment, report, slides, demo rehearsal.
 
@@ -191,7 +191,7 @@ rag-capstone/
 ---
 
 ## Practical tips / risks
-- **Colab limits:** keep a `Qwen2.5-3B-Instruct` config for fast iteration; switch to 7–8B (4-bit) for final runs. Save indexes/embeddings to Drive so you don't recompute.
+- **Compute:** prefer local Ollama on the Mac (M3 Max/96 GB — no Colab limits) with a small non-Chinese model (e.g. `Llama-3.2-3B`) for fast iteration, scaling to 8B+ for final runs; Colab (4-bit) is the alternative. Save indexes/embeddings to Drive when on Colab.
 - **Judge cost:** `gpt-4o-mini` is cheap, but cache judge outputs and evaluate on subsets to control spend.
 - **Don't over-engineer retrieval setup:** start with per-example retrieval to validate the evaluator quickly, then move to the pooled per-domain index for the real results.
 - **Reproducibility:** fix random seeds; log every config + its scores into `results/` as CSV.

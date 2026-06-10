@@ -1,23 +1,27 @@
-"""HuggingFaceGenerator — the real LLM generator (runs on COLAB per policy).
+"""HuggingFaceGenerator — the real LLM generator (in-process transformers; Colab GPU).
 
-Wraps a HuggingFace causal LM (e.g. Qwen2.5-Instruct). The model name is a config
-param (same pattern as the embedder), so smoke-testing a small model and scaling
-to a large one is a config change, not new code:
-    {type: hf, model: Qwen/Qwen2.5-3B-Instruct}      # smoke test
-    {type: hf, model: Qwen/Qwen2.5-7B-Instruct, load_in_4bit: true}  # real (Colab GPU)
+Wraps a HuggingFace causal LM. The model name is a config param (same pattern as
+the embedder), so smoke-testing a small model and scaling to a large one is a config
+change, not new code:
+    {type: hf, model: meta-llama/Llama-3.2-3B-Instruct}                 # smoke test
+    {type: hf, model: meta-llama/Llama-3.1-8B-Instruct, load_in_4bit: true}  # real (Colab GPU)
+
+NOTE (policy, 10 Jun 2026): open-source models may also run LOCALLY as long as they
+are NOT Chinese models. On a Mac, the lighter path is the OllamaGenerator (type
+"ollama") — no torch/bitsandbytes. This hf backend is for the in-process/Colab path.
+Use NON-Chinese models (Llama / Mistral / Gemma); do not default to Qwen.
 
 Separation of concerns: the PromptBuilder produced a plain, model-agnostic
 string; THIS class wraps it as a chat 'user' turn and applies the model's own
 chat template (the model-specific tokens). That's why PromptBuilder stayed plain.
 
 HEAVY: imports transformers/torch lazily inside __init__, and is registered only
-via load_generators() — so `import src` never pulls in the ML stack. Intended to
-run on Colab (GPU); CPU works for tiny models but is slow.
+via load_generators() — so `import src` never pulls in the ML stack.
 """
 
 from ..registry import register
 
-DEFAULT_MODEL = "Qwen/Qwen2.5-3B-Instruct"   # small smoke-test default; scale via config
+DEFAULT_MODEL = "meta-llama/Llama-3.2-3B-Instruct"   # small non-Chinese smoke default; scale via config
 
 
 @register("generator", "hf")

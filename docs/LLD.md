@@ -346,7 +346,7 @@ Example experiment (illustrative — shows the *shape*; some types below are asp
 that actually validate against the current registry, see the real files in `configs/`** (e.g.
 `grounded_rerank.yaml`) and `configs/README.md`. Registered types today: chunker `fixed`/`none`;
 embedder `minilm`/`sentence_transformer`; index `faiss`; retriever `dense`; reranker `cross_encoder`/`none`;
-repacker `forward`/`reverse`/`sides`; prompt `grounded`/`minimal`; generator `hf`/`echo`; splitter `regex`/`nltk`.
+repacker `forward`/`reverse`/`sides`; prompt `grounded`/`minimal`; generator `ollama`/`hf`/`echo`; splitter `regex`/`nltk`.
 
 ```yaml
 domain: Legal
@@ -357,7 +357,7 @@ retriever:  { type: dense, k: 20 }
 reranker:   { type: cross_encoder, top_n: 5 }           # null to ablate OFF
 repacker:   { type: reverse }                           # forward | reverse | sides
 prompt:     { type: grounded }
-generator:  { type: hf, model: Qwen/Qwen2.5-3B-Instruct, load_in_4bit: false }
+generator:  { type: ollama, model: llama3.1:8b }     # local (Mac); or type: hf for Colab. NON-Chinese only.
 splitter:   { type: regex }                             # bridge to the judge
 ```
 
