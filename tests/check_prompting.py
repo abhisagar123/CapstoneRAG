@@ -10,7 +10,8 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import src  # noqa: F401
 from src.registry import build, available
 from src.prompting import (
-    PromptBuilder, GroundedPromptBuilder, MinimalPromptBuilder, format_chunks,
+    PromptBuilder, GroundedPromptBuilder, MinimalPromptBuilder,
+    GroundedCompletePromptBuilder, format_chunks,
 )
 from src.indexing import RetrievedChunk
 from src.chunking import Chunk
@@ -22,7 +23,7 @@ def _chunks(texts):
 
 
 def test_registered():
-    assert set(available("prompt")) == {"grounded", "minimal"}
+    assert set(available("prompt")) == {"grounded", "minimal", "grounded_complete"}
 
 
 def test_format_chunks_numbered_in_order():
@@ -53,8 +54,25 @@ def test_grounded_refusal_is_configurable():
     assert "NO ANSWER" in custom
 
 
+def test_grounded_complete_keeps_grounding_adds_thoroughness():
+    # The Exp-4 variant: strict grounding (held) PLUS a completeness push (new).
+    g = GroundedPromptBuilder().build("What is X?", _chunks(["ctx one"]))
+    gc = GroundedCompletePromptBuilder().build("What is X?", _chunks(["ctx one"]))
+    assert "ONLY the context" in gc                          # grounding preserved
+    assert "cannot answer" in gc                             # refusal preserved
+    assert "thorough" in gc.lower()                          # the new completeness instruction
+    assert "thorough" not in g.lower()                       # ...which the baseline lacks
+    # Differ ONLY by the added thoroughness — same question/context scaffold.
+    assert "What is X?" in gc and "[1] ctx one" in gc
+
+
+def test_grounded_complete_refusal_configurable():
+    custom = GroundedCompletePromptBuilder(refusal="NO ANSWER").build("q", _chunks(["c"]))
+    assert "NO ANSWER" in custom
+
+
 def test_both_satisfy_interface_and_return_str():
-    for t in ("grounded", "minimal"):
+    for t in ("grounded", "minimal", "grounded_complete"):
         b = build("prompt", t)
         assert isinstance(b, PromptBuilder)
         out = b.build("q?", _chunks(["c"]))
