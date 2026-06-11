@@ -47,8 +47,33 @@ fed to the judge, scores compared to reference. Metric: RMSE (lower = closer), s
   OSS judging on long documents, not a bug. CUAD's real pipeline scores still come from the matrix
   (Experiment 2), where the judge sees only **retrieved chunks**, not full contracts.
 
-**Decision:** `llama3.1:8b` selected as the judge. **Parked for after the matrix:** compare a larger
-judge (Llama-3-70B / Gemma-2-27B) and schema-constrained JSON output as quality-improvement passes.
+### Judge comparison — we tested two alternatives before locking in
+
+To justify the judge choice (not just default to it), we validated two other candidates the same
+way and compared agreement on the short domains:
+
+| judge | rel RMSE | util RMSE | compl RMSE | adh acc | speed | notes |
+|---|---|---|---|---|---|---|
+| **`llama3.1:8b`** | **0.229** | **0.185** | **0.529** | 0.765 | fast | wins 3/4 metrics; most consistent across domains |
+| `gemma2:9b` | 0.238 | 0.208 | 0.685 | **0.805** | fast | better adherence (but uneven: hotpotqa 0.94 / emanual 0.62); erratic on fractions |
+| `llama3.1:70b` | 0.166* | 0.119* | 0.382* | 0.780* | **~6–10× slower** | *covidqa only (1 domain); too slow to finish — see below |
+
+(\* 70B finished only covidqa: ~2.5 h for one domain, ~1–3 min/example — projected 6–10 h for all four,
+and far worse for the full matrix. We stopped it after covidqa; that one domain showed only a ~0.01
+relevance gain over 8B.)
+
+**Finding:** *no judge dominates* — all three sit in the same agreement band (~0.17–0.24 relevance RMSE)
+with different strengths (8B best on the fraction metrics + most consistent; gemma best on adherence but
+uneven; 70B marginally best where measured but impractically slow). This matches the RAGBench paper's
+point that LLM judges are imperfect, and shows **model size/choice is not the lever that meaningfully
+improves judge agreement here** (9× bigger → +0.01 relevance).
+
+**DECISION (locked 11 Jun 2026): `llama3.1:8b` is THE judge for all of Task 1.** Rationale: wins the most
+metrics (incl. completeness clearly), most consistent across domains, fast, and the incumbent. Changing
+the judge after producing results would invalidate all comparisons, so this is fixed and not revisited.
+A different-family or larger judge (gemma/70B) was tested and is **not** a clear upgrade — recorded here
+so we don't re-litigate it. (Judge and generator are independent roles; the generator can be any model.)
+**Parked (only if ever needed):** schema-constrained JSON output (proven on Ollama) for fewer parse retries.
 
 ---
 
