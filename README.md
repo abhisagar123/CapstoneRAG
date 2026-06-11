@@ -21,11 +21,15 @@ ready-made library.
 |---|---|---|
 | 0 | Repo, EDA, schema confirmation | ✅ done |
 | 1a | TRACe evaluator — **math half** (the 4 metrics from gold labels) | ✅ done & validated |
-| 1b | TRACe evaluator — **LLM-judge half** (produces labels for our own pipeline) | ✅ built (OSS judge on Colab) |
+| 1b | TRACe evaluator — **LLM-judge half** (labels our own pipeline) | ✅ built; judge selected (`llama3.1:8b`, local) |
 | 1c | Modular RAG pipeline (built brick by brick) + config + experiment runner | ✅ built |
-| 2 | Colab notebooks (judge validation, results matrix) + per-domain ablations | 🚧 running on Colab |
+| 2 | Strategy × domain results matrix + per-domain ablations | 🚧 first matrix produced (2 domains, N=10); scaling next |
 | 3 | RGB robustness evaluation | ⬜ |
 | 4 | Gradio demo + report | ⬜ |
+
+> Open-source models run **locally via Ollama** (judge `llama3.1:8b`, generator `llama3.2:3b`) — except
+> Chinese models. The `hf`/Colab path is retained as an alternative. See `docs/EXPERIMENTS.md` for results and
+> `docs/PIPELINE_WALKTHROUGH.md` for an end-to-end trace.
 
 **RAG pipeline bricks** (built one at a time, each tested): data loader ✅ · chunker + registry ✅ ·
 embedder ✅ · index + retriever ✅ (FAISS dense) · reranker + repacker ✅ · prompt builder ✅ ·
@@ -80,6 +84,8 @@ results/
   evaluator_validation.csv      # the validation report card
 docs/
   PROJECT_PLAN.md  HLD.md  LLD.md   # plan + high-/low-level design
+  PIPELINE_WALKTHROUGH.md           # one question traced through every stage, end to end
+  EXPERIMENTS.md                    # experiment log + per-metric TRACe findings & reasoning
 papers/                         # the 3 core + 1 supplementary reference papers (PDFs)
 ```
 
