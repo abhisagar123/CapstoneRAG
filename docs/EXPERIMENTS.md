@@ -115,13 +115,17 @@ completeness 0.10–0.63 (high variance at N=10).
 
 ### Findings + reasoning
 
-**F1 — The reranker improves adherence, consistently (the strongest result).**
+**F1 — The reranker improves adherence, consistently (the strongest result *at N=10*).**
 In **all four** prompt×domain pairs, turning the cross-encoder reranker ON raised adherence:
 GenKnowledge grounded 0.60→0.80, GenKnowledge minimal 0.50→0.78, CustomerSupport both 0.30→0.40.
-*Reasoning:* the cross-encoder re-scores each (question, chunk) pair *together* (not just vector
-similarity), so it surfaces chunks that genuinely answer the question. With better material in the
-prompt, the generator can ground its answer instead of inventing — directly lifting faithfulness.
-Because it repeats across every pair, this is the most trustworthy finding in the matrix.
+*Reasoning (proposed at the time):* the cross-encoder re-scores each (question, chunk) pair *together*
+(not just vector similarity), so it surfaces chunks that genuinely answer the question; with better
+material in the prompt, the generator can ground its answer instead of inventing.
+> **⚠️ SUPERSEDED at N=50 — see Experiment 3, F3.** This "consistent across 4 pairs" result did **not**
+> replicate at N=50: the adherence gain collapsed to ~+0.03 (flat) and went *negative* on one cell. At
+> N=10 each cell was 10 answers, so "0.60→0.80" was a 2-answer swing — sampling luck, not a real effect.
+> Kept here as written to document the correction. **A finding repeating across small cells can still be
+> noise; only scaling N exposed it.**
 
 **F2 — Domain matters more than strategy for adherence.** Every CustomerSupport cell (0.30–0.40) is
 well below its GenKnowledge counterpart (0.50–0.80). *Reasoning (hypothesis):* CustomerSupport
@@ -172,10 +176,14 @@ REFERENCE number:  gold answer + full gold documents    -> gold labels  -> TRACe
 ```
 
 **Setup:** the reference baseline is the shipped `*_score` fields (proven equal to our own math at
-RMSE 0 in Exp 0 / notebook 02), averaged over the **same N=10 examples** the matrix sampled
-(`load_domain(domain, "test", n=10, seed=42)` — a fair head-to-head, not a different slice). `gap =
-ours − reference`. Producer: `scripts/compare_reference.py` → `results/reference_comparison.csv` +
-`results/figures/compare_*.png`. No model needed (the reference fields are free), so this is instant.
+RMSE 0 in Exp 0 / notebook 02), averaged over the **same examples** the matrix sampled
+(`load_domain(domain, "test", n=N, seed=42)` — a fair head-to-head, not a different slice). `gap =
+ours − reference`. Producer: `scripts/compare_reference.py` → `results/reference_comparison*.csv` +
+`results/figures*/compare_*.png`. No model needed (the reference fields are free), so this is instant.
+
+**We ran it at two sizes — N=10 first, then N=50** (2 domains, the 2×2 grid). The N=50 numbers below
+are the reportable ones; the N=10→N=50 shift is itself a finding (F3), so both are kept. Sources:
+`results/ragbench_matrix.csv` / `reference_comparison.csv` (N=10) and the `*_n50` files (N=50).
 
 > **Each metric's gap means something different — they are NOT symmetric:**
 > - **relevance** → cleanest *retriever* signal (it ignores the answer entirely). Reference =
@@ -187,56 +195,145 @@ ours − reference`. Producer: `scripts/compare_reference.py` → `results/refer
 > - **utilization** → mixes retrieval *and* generation; triangulate.
 > - **completeness** → a derived ratio; noisiest; read last.
 
-### The gaps (gap = ours − reference; matched-N, N=10)
+### The gaps (gap = ours − reference; matched-N, **N=50**)
 
 | metric | GenKnowledge (our range) | CustomerSupport (our range) | gap direction |
 |---|---|---|---|
-| **relevance** | −0.13 … +0.05 (mixed) | **+0.12 … +0.23 (all positive)** | at/above reference |
-| **utilization** | −0.13 … +0.01 | +0.02 … +0.11 | near/slightly above |
-| **adherence** | **−0.10 … −0.40 (all negative)** | **−0.20 … −0.30 (all negative)** | **below reference** |
-| **completeness** | −0.02 … −0.35 | −0.21 … −0.48 | below reference |
+| **relevance** | **+0.085 … +0.104 (all positive)** | **+0.071 … +0.152 (all positive)** | above reference |
+| **utilization** | −0.124 … +0.118 (prompt-dependent) | −0.031 … +0.064 | mixed |
+| **adherence** | **−0.133 … −0.280 (all negative)** | **−0.240 … −0.320 (all negative)** | **below reference** |
+| **completeness** | −0.200 … −0.346 | **−0.359 … −0.539** | **well below reference** |
 
-(Reference levels: GenKnowledge adherence 0.90, relevance 0.42; CustomerSupport adherence 0.60,
-relevance 0.12. Full per-cell numbers in `results/reference_comparison.csv`.)
+(N=50 reference levels: GenKnowledge adherence 0.80, relevance 0.327, completeness 0.701;
+CustomerSupport adherence 0.70, relevance 0.139, completeness 0.696. A few cells scored 48–49/50 —
+the judge skipped a handful of unparseable/timed-out answers, as designed. Full per-cell numbers in
+`results/reference_comparison_n50.csv`; charts in `results/figures_n50/`.)
 
 ### Findings + reasoning
 
-**F1 — We are NOT lagging on retrieval (the surprise).** Relevance gaps are mostly *positive* —
-strongly so on CustomerSupport (+0.12…+0.23 across all four strategies). Our retriever concentrates
-relevant material *above* the raw-document baseline, exactly what a good retriever should do. *So the
-intuitive "improve retrieval" reflex (hybrid search, better embedder) is aimed at the wrong place* —
-the reference comparison says retrieval is already at or above par. (Caveat: our relevance is judged
-by `llama3.1:8b`, which mildly over-marks ~+0.09 from Exp 1 — a *small* positive gap may be partly
-that. The bias is ~constant across configs, so config-vs-config comparisons stay valid.)
+**F1 — We are NOT lagging on retrieval (now unanimous at N=50).** Relevance gaps are positive in
+**all 8 cells** (+0.07 … +0.15). At N=10 GenKnowledge was mixed (one cell −0.13); scaling to N=50
+resolved it cleanly positive — our retriever concentrates relevant material *above* the raw-document
+baseline, exactly what a good retriever should do. *So the intuitive "improve retrieval" reflex
+(hybrid search, better embedder) is aimed at the wrong place* — retrieval is already at/above par.
+(Caveat: our relevance is judged by `llama3.1:8b`, which mildly over-marks ~+0.09 from Exp 1 — so the
+GenKnowledge gap of ~+0.09 may be *mostly judge bias*, while CustomerSupport's larger +0.13…+0.15 is
+real headroom above it. The bias is ~constant across configs, so config-vs-config stays valid.)
 
-**F2 — We lag on adherence, everywhere (the real gap).** Every single cell is below reference
-(−0.10 to −0.40). *Reasoning:* adherence is the generator's faithfulness, and ours is the tiny
-`llama3.2:3b`, vs the reference's gpt-3.5. A small model drifts from source wording / adds
-unsupported detail, and the judge marks those sentences unsupported. **This is the component to
-experiment on next: a bigger generator and/or a stronger grounding prompt — not the retriever.**
+**F2 — We lag on adherence, everywhere (the real gap; stable across N).** All 8 cells below reference
+(−0.13 … −0.32 at N=50; the same all-negative picture as N=10). *Reasoning:* adherence is the
+generator's faithfulness, and ours is the tiny `llama3.2:3b`, vs the reference's gpt-3.5. A small
+model drifts from source wording / adds unsupported detail, and the judge marks those sentences
+unsupported. **This is the component to experiment on next: a bigger generator and/or a stronger
+grounding prompt — not the retriever.**
 
-**F3 — The reranker narrows the adherence gap (second confirmation of Exp 2's F1).** On
-GenKnowledge the gap shrinks from −0.30 (grounded, no-rerank) to −0.10 (grounded, rerank), and
-−0.40 → −0.12 (minimal). Seeing the reranker help *both* in absolute terms (Exp 2) *and* relative to
-the reference (here) makes it the most robust positive result in the project so far. The
-`compare_adherence.png` figure shows this at a glance (blue rerank bars reach toward the red
-reference bars).
+**F3 — ⚠️ The reranker's adherence "win" did NOT survive scaling — a small-sample mirage (the most
+instructive finding).** At **N=10** the headline result (Exp 2 F1) was "the cross-encoder reranker
+raised adherence in all 4 pairs" (e.g. GenKnowledge grounded 0.60→0.80). At **N=50 that effect
+collapses to near-zero, and on one cell it reverses:**
 
-**F4 — Completeness is below reference everywhere.** Our 3B answers are terse and cover less of the
-relevant material than gpt-3.5's. Consistent with F2 (same small-generator root cause) and with the
-metric being a noisy derived ratio at N=10 — read it as corroborating, not independent.
+| pair | N=10 (no-rerank → rerank) | N=50 (no-rerank → rerank) |
+|---|---|---|
+| GenKnowledge, grounded | 0.60 → 0.80 (+0.20) | 0.64 → 0.67 (+0.03, flat) |
+| GenKnowledge, minimal | 0.50 → 0.78 (+0.28) | 0.52 → 0.55 (+0.03, flat) |
+| CustomerSupport, grounded | 0.30 → 0.40 (+0.10) | 0.46 → **0.38 (−0.08, hurt)** |
+| CustomerSupport, minimal | 0.30 → 0.40 (+0.10) | 0.44 → 0.43 (−0.01, flat) |
+
+*Reasoning:* at N=10, "0.60→0.80" was literally "6 vs 8 of 10 answers" — a 2-answer swing that looked
+like a strong effect but was mostly **sampling luck**. At N=50 the reranker gives **no reliable
+adherence gain**. It *does* still help relevance/utilization (it surfaces better chunks), but better
+chunks in front of a weak 3B generator don't translate into faithfulness. **Lesson: a finding that
+repeats across N=10 cells can still be noise if every cell is small — only scaling N revealed it.**
+This is a strong report anecdote for *why* rigorous evaluation (not just a directional matrix) matters,
+and it reinforces F2: the bottleneck is the generator, not retrieval.
+
+**F4 — Completeness is well below reference (the widest gap; clearer at N=50).** −0.20 … −0.54, worst
+on CustomerSupport (reference ~0.70, ours ~0.16–0.34). Our terse 3B answers cover far less of the
+relevant material than gpt-3.5's. The gap *grew* vs N=10 because the N=50 reference completeness (~0.70)
+is higher/more-stable than the noisy N=10 estimate. Same small-generator root cause as F2.
 
 ### Caveats for this experiment
-- **N=10 → directional.** The *signs* (relevance ≥ 0, adherence < 0) repeat across all cells and are
-  trustworthy; exact gap magnitudes are noisy. Re-running at **N=50** (in progress) will firm these up.
-- **Matched-N baseline is itself noisy at N=10** — e.g. GenKnowledge reference relevance is 0.42 over
-  these 10 examples but 0.31 over the full split (`--full-split`). The *direction* of the adherence gap
-  is robust to this; borderline relevance cells are not. The full-split baseline is the stable yardstick.
-- **Judge over-marking** (Exp 1, +0.09 relevance) inflates our relevance slightly — accounted for in F1.
+- **N=50 is reportable but still modest; N=10 was only directional.** F3 is the cautionary tale — the
+  *signs* of F1/F2 held from N=10 to N=50, but a *magnitude*-based finding (reranker→adherence) did not.
+  Trust signs that survive scaling; be wary of magnitudes until N is larger and ideally with CIs.
+- **Matched-N baseline is itself noisy at small N** — e.g. GenKnowledge reference relevance was 0.42
+  over the N=10 sample but 0.33 over the N=50 sample and 0.31 over the full split (`--full-split`). The
+  full-split baseline is the stable yardstick; matched-N is the fair head-to-head at a given N.
+- **Judge over-marking** (Exp 1, +0.09 relevance) inflates our relevance — so the GenKnowledge
+  relevance gap is plausibly mostly bias; CustomerSupport's is largely real (accounted for in F1).
 
 **Bottom line / direction for experiments:** spend the next effort budget on the **generator and the
 grounding prompt** (close the adherence + completeness gaps), *not* on retrieval (already at/above
-reference). This is the reference comparison doing its job: aiming the ablations.
+reference) and *not* on the reranker (no adherence payoff at N=50). This is the reference comparison
+doing its job: aiming the ablations — and F3 shows it also *guards* us from over-reading small-N wins.
+
+---
+
+## Experiment 4 — A completeness-aware grounding prompt (a new component, aimed by Exp 3)
+
+**Question:** Exp 3 said our two gaps vs reference are **adherence** and **completeness**, both
+prompt/generator-side. The baseline `grounded` prompt targets adherence ("use ONLY the context") but
+says nothing about *coverage* — yet completeness is "of the relevant material, how much did the answer
+cover?". **Can a prompt that adds a thoroughness instruction lift completeness — without sinking
+adherence?** This is a directed ablation: the reference comparison pointed here, so we built a
+component to test it.
+
+**The component (new):** `GroundedCompletePromptBuilder` (prompt type `grounded_complete`,
+`src/prompting/grounded_complete_prompt_builder.py`). It keeps the baseline's strict grounding +
+refusal **verbatim** and adds one scoped sentence: *"Be thorough: include every relevant detail that
+the context provides … but do not add any information that is not in the context."* The "from the
+context" scope is deliberate — to push recall (completeness) while trying to hold the grounding
+(adherence). **Built-in tension (predicted before running):** "be thorough" can tempt a small 3B model
+to pad with unsupported claims, which would *hurt* adherence. Measuring that trade-off IS the
+experiment.
+
+**Setup:** clean one-variable ablation — `grounded_complete_norerank.yaml` is **identical** to
+`grounded_norerank.yaml` except the prompt type, run at the **same seed=42, N=50**, so it appended just
+2 cells to the existing matrix and compares head-to-head against rows we already had. Generator =
+`llama3.2:3b`, judge = `llama3.1:8b`. Source: `results/ragbench_matrix_n50.csv` (the two
+`grounded_complete_norerank` rows) + `reference_comparison_n50.csv`.
+
+### grounded_complete vs grounded (no-rerank, N=50; prompt is the only difference)
+
+| metric | GenKnowledge Δ | CustomerSupport Δ |
+|---|---|---|
+| relevance | +0.009 (~flat — expected; prompt doesn't change retrieval) | −0.024 (~flat) |
+| **utilization** | **+0.105** (uses more context) | +0.025 |
+| **completeness** | **+0.119** (gap to reference −0.31 → −0.19) | +0.030 |
+| **adherence** | **−0.040** (gap −0.16 → −0.20) | +0.009 (~flat) |
+
+### Findings + reasoning
+
+**F1 — The completeness push WORKED (the intended effect).** On GenKnowledge completeness rose
++0.119 — `grounded_complete` is now the **best completeness of any no-rerank config**, and its
+reference gap (−0.19) is the smallest of the grounded family. Utilization rose in lockstep (+0.105):
+told to be thorough, the 3B model genuinely *read and used more* of the retrieved context. The
+relevance non-change (+0.009) is a good sanity check — the prompt doesn't touch retrieval, so
+relevance *shouldn't* move, and it didn't.
+
+**F2 — It cost a little adherence on GenKnowledge — the predicted precision/recall trade.** Adherence
+dipped −0.040 (gap widened −0.16 → −0.20). *Reasoning:* pushing coverage nudged the model to include
+material it couldn't fully ground, so the judge marked a few more sentences unsupported. This is the
+tension we flagged *before* the run, now observed: **a completeness gain trades against faithfulness.**
+It's a *trade*, not a free win.
+
+**F3 — The effect is domain-dependent.** CustomerSupport barely moved (completeness +0.030, adherence
++0.009) — the thoroughness instruction helped much less on short procedural answers than on the more
+expository GenKnowledge answers. So "be thorough" is a GenKnowledge-shaped lever, not a universal one.
+
+### Caveats
+- **The adherence cost (−0.040 on GenKnowledge) is ±2 answers out of 50 — within small-sample noise**
+  (the Exp 3 F3 lesson). Read it as: *completeness gain is solid and sizable; the adherence cost is
+  small and not yet confirmed real.* Needs larger N (ideally with confidence intervals) to be sure.
+- **One generator (3B).** A larger generator might get the completeness gain with less adherence cost
+  (more capacity to be both thorough AND grounded) — a natural next ablation (prompt × generator size).
+- Judge over-marking (Exp 1) applies equally to both prompts, so the *delta* is unaffected.
+
+**Takeaway:** a directed, single-component experiment confirmed the reference comparison's diagnosis is
+actionable — the completeness gap *is* movable by the prompt. But it surfaced a real precision/recall
+tension, so the better fix is likely **prompt + a bigger generator together**, not the prompt alone.
+Good report material: "we let the gap analysis pick the experiment, predicted a trade-off, and measured
+it" is exactly the rigorous-evaluation story the project is graded on.
 
 ---
 
@@ -247,14 +344,18 @@ reference). This is the reference comparison doing its job: aiming the ablations
 2. ✅ **Compare to reference scores (Experiment 3, done):** built `src/evaluator/compare.py` +
    `scripts/compare_reference.py`. Headline: retrieval is at/above reference; **adherence is the gap**
    → next effort goes to the generator + prompt, not the retriever.
-3. **More levers (now aimed by Exp 3):** **bigger generator + grounding prompt FIRST** (closes the
-   adherence/completeness gap); then chunking (esp. CUAD), embedder (MiniLM vs BGE), repacker.
-4. **Judge quality pass:** Llama-3-70B / Gemma-2-27B as judge; schema-constrained JSON.
+3. **More levers (now aimed by Exp 3):** **bigger generator FIRST** — Exp 4 showed the prompt alone
+   trades adherence for completeness on a 3B model; a larger generator may get both. Then the
+   `grounded_complete` prompt × generator-size interaction; then chunking (esp. CUAD), embedder, repacker.
+4. **Confirm Exp 4 at larger N:** the −0.040 adherence cost is within noise; re-run grounded_complete
+   at higher N (and add it to the rerank arm) to see if the completeness win holds and the cost is real.
+5. **Judge quality pass:** Llama-3-70B / Gemma-2-27B as judge; schema-constrained JSON.
 5. **CUAD:** judge-validation is impractical locally (Exp 1); decide whether to report CUAD pipeline
    scores with a caveat or document the limitation.
 
 ---
 
 *Data sources: `results/judge_validation__llama3-1-8b__baseline__n50.csv` (Exp 1),
-`results/ragbench_matrix.csv` (Exp 2), `results/reference_comparison.csv` + `results/figures/compare_*.png`
-(Exp 3). See `PIPELINE_WALKTHROUGH.md` for how a single number is produced end-to-end.*
+`results/ragbench_matrix.csv` (Exp 2, N=10), `results/ragbench_matrix_n50.csv` +
+`results/reference_comparison_n50.csv` + `results/figures_n50/compare_*.png` (Exp 3 & 4).
+See `PIPELINE_WALKTHROUGH.md` for how a single number is produced end-to-end.*
