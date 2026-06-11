@@ -38,13 +38,13 @@ def build_judge(backend, model):
     return build("judge", "hf", {"model": model, "load_in_4bit": True, "max_new_tokens": 1536})
 
 
-def print_verdict():
+def print_verdict(out_csv=OUT_CSV):
     """Pivot the matrix CSV to strategy × domain, per metric (same view as nb04)."""
     import pandas as pd
-    if not os.path.exists(OUT_CSV):
-        print(f"no {OUT_CSV} yet — run the matrix first.")
+    if not os.path.exists(out_csv):
+        print(f"no {out_csv} yet — run the matrix first.")
         return
-    df = pd.read_csv(OUT_CSV)
+    df = pd.read_csv(out_csv)
     print("Raw rows:\n")
     cols = ["config_name", "domain", "n", "n_scored", "relevance", "utilization",
             "completeness", "adherence", "scoring"]
@@ -62,12 +62,15 @@ def main():
     ap.add_argument("--gen-model", default="llama3.2:3b")
     ap.add_argument("--domains", nargs="+", default=["GenKnowledge", "CustomerSupport"])
     ap.add_argument("--n", type=int, default=10, help="examples per (config, domain)")
+    ap.add_argument("--out", default=OUT_CSV,
+                    help="output matrix CSV (use a distinct file for a different N so the "
+                         "resumable skip-logic doesn't treat an N=10 run as already done)")
     ap.add_argument("--workers", type=int, default=1, help="(reserved) per-example concurrency")
     ap.add_argument("--verdict", action="store_true", help="just print the matrix pivot and exit")
     args = ap.parse_args()
 
     if args.verdict:
-        print_verdict()
+        print_verdict(args.out)
         return
 
     import yaml
@@ -97,9 +100,9 @@ def main():
             cache[cfg.domain] = load_domain(cfg.domain, split="test", n=args.n, seed=42)
         return cache[cfg.domain]
 
-    run_named_matrix(grid, examples_for, OUT_CSV, segmenter=seg, judge=judge)
+    run_named_matrix(grid, examples_for, args.out, segmenter=seg, judge=judge)
     print("\n--- matrix so far ---")
-    print_verdict()
+    print_verdict(args.out)
 
 
 if __name__ == "__main__":

@@ -39,3 +39,6 @@ data/
 ragbench_schema.json
 ragbench_*.csv
 !results/ragbench_matrix.csv
+# Any N-scaled matrix variant (ragbench_matrix_n50.csv, …) is also a deliverable — the
+# broad rule above would ignore it. Keep scratch dumps named ragbench_scratch_* instead.
+!results/ragbench_matrix_n*.csv
