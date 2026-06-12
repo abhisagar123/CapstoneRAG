@@ -1,0 +1,20 @@
+# Experiment 6B: the completeness-aware prompt (Exp 4) WITH the cross-encoder reranker.
+# Fills the missing cell of Exp 4's design: Exp 4 tested grounded_complete only with NO
+# reranker. Pair with grounded_complete_norerank.yaml (isolates the RERANKER's effect on the
+# completeness prompt) AND with grounded_rerank.yaml (isolates the PROMPT's effect when reranking).
+# Only prompt+reranker differ from the baselines; all else identical.
+domain: Legal
+
+chunker:   { type: fixed, size: 512, overlap: 50 }
+embedder:  { type: minilm }
+index:     { type: faiss, corpus_mode: per_example }
+
+retriever: { type: dense, k: 20 }
+reranker:  { type: cross_encoder, top_n: 5 }          # rerank ON (vs grounded_complete_norerank)
+repacker:  { type: reverse }
+prompt:    { type: grounded_complete }                # the completeness steer (vs grounded_rerank)
+generator: { type: ollama, model: llama3.1:8b, max_new_tokens: 256 }   # overridden by --gen-model at run time
+
+splitter:  { type: regex }
+
+seed: 42
