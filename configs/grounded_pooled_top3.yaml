@@ -1,0 +1,24 @@
+# Pooled Exp 2: top_n 5 -> 3 (tighter context) in POOLED mode.
+# Pair with grounded_pooled_norerank.yaml -> isolates top_n. The pooled diagnostic showed the
+# tail of the top-5 is noise (top-3 precision 72% vs top-5 58%): we retrieve 5 chunks but only
+# ~2-3 are gold. Feeding the generator only the 3 best should RAISE relevance (fewer irrelevant
+# sentences) and give the small generator cleaner material to ground on (util/adherence).
+# ONLY reranker.top_n differs from grounded_pooled_norerank.yaml (5 -> 3); all else identical.
+#
+# (top_n lives on the reranker stage even when reranker type is "none" — the pipeline reads it as
+# the truncation count: candidates[:top_n]. So changing it here changes how many chunks reach the prompt.)
+domain: Legal
+
+chunker:   { type: fixed, size: 512, overlap: 50 }
+embedder:  { type: minilm }
+index:     { type: faiss, corpus_mode: pooled }
+
+retriever: { type: dense, k: 20 }
+reranker:  { type: none, top_n: 3 }                   # the one variable vs grounded_pooled_norerank.yaml (was 5)
+repacker:  { type: reverse }
+prompt:    { type: grounded }
+generator: { type: ollama, model: llama3.1:8b, max_new_tokens: 256 }   # overridden by --gen-model at run time
+
+splitter:  { type: regex }
+
+seed: 42

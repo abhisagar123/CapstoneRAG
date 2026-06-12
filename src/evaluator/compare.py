@@ -8,7 +8,7 @@ with. Keep them straight:
     the reference was built on (the example's own gold documents + gold answer) and
     ask "does OUR judge agree with GPT-4?". That CALIBRATES the ruler.
 
-  * THIS module: take the scores OUR pipeline earned (results/ragbench_matrix.csv —
+  * THIS module: take the scores OUR pipeline earned (results/per_example/ragbench_matrix.csv —
     our answer, over our retrieved context) and lay them next to the reference
     scores the dataset ships, per domain. That MEASURES our system with the
     calibrated ruler, and exposes WHERE we lag → which component to improve.

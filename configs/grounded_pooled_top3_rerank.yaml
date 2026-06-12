@@ -1,0 +1,21 @@
+# Pooled Exp 3b: reranker ON, top_n 3 — the 4th cell of the pooled {top_n} x {reranker} 2x2.
+# Pair with grounded_pooled_top3.yaml (isolates the reranker at top_n=3) AND with
+# grounded_pooled_rerank.yaml (isolates top_n when reranking). Tests whether reranking RESCUES
+# the adherence that plain top_n=3 lost (Exp 2): if the 3 kept chunks are the reranker's BEST 3
+# rather than the dense top-3, coverage of what the answer needs may improve.
+# ONLY reranker.top_n differs from grounded_pooled_rerank.yaml (5 -> 3); all else identical.
+domain: Legal
+
+chunker:   { type: fixed, size: 512, overlap: 50 }
+embedder:  { type: minilm }
+index:     { type: faiss, corpus_mode: pooled }
+
+retriever: { type: dense, k: 20 }
+reranker:  { type: cross_encoder, top_n: 3 }          # top_n 3 (vs grounded_pooled_rerank.yaml's 5)
+repacker:  { type: reverse }
+prompt:    { type: grounded }
+generator: { type: ollama, model: llama3.1:8b, max_new_tokens: 256 }   # overridden by --gen-model at run time
+
+splitter:  { type: regex }
+
+seed: 42

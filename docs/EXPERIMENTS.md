@@ -23,7 +23,7 @@ its TRACe scores agree with RAGBench's shipped GPT-4 reference scores.
 
 **Setup:** judge = `llama3.1:8b` (local Ollama), N=50/domain, the example's own gold keyed sentences
 fed to the judge, scores compared to reference. Metric: RMSE (lower = closer), signed error
-(direction of bias), adherence accuracy. Source: `results/judge_validation__llama3-1-8b__baseline__n50.csv`.
+(direction of bias), adherence accuracy. Source: `results/validation/judge_validation__llama3-1-8b__baseline__n50.csv`.
 
 | Domain | rel RMSE | rel signed | adh acc | JSON failures |
 |---|---|---|---|---|
@@ -84,7 +84,7 @@ deliverable. Each cell = run a strategy on N questions through the full pipeline
 average the four TRACe scores.
 
 **Setup:** generator = `llama3.2:3b`, judge = `llama3.1:8b` (both local Ollama), **N=10/cell**,
-2 domains (GenKnowledge, CustomerSupport), the 2×2 strategy grid. Source: `results/ragbench_matrix.csv`.
+2 domains (GenKnowledge, CustomerSupport), the 2×2 strategy grid. Source: `results/per_example/ragbench_matrix.csv`.
 
 The 2×2 grid varies **one lever at a time**:
 - **prompt:** `grounded` (answer ONLY from context, else refuse) vs `minimal` (bare context+question)
@@ -178,12 +178,12 @@ REFERENCE number:  gold answer + full gold documents    -> gold labels  -> TRACe
 **Setup:** the reference baseline is the shipped `*_score` fields (proven equal to our own math at
 RMSE 0 in Exp 0 / notebook 02), averaged over the **same examples** the matrix sampled
 (`load_domain(domain, "test", n=N, seed=42)` — a fair head-to-head, not a different slice). `gap =
-ours − reference`. Producer: `scripts/compare_reference.py` → `results/reference_comparison*.csv` +
-`results/figures*/compare_*.png`. No model needed (the reference fields are free), so this is instant.
+ours − reference`. Producer: `scripts/compare_reference.py` → `results/per_example/reference_comparison*.csv` +
+`results/per_example/figures*/compare_*.png`. No model needed (the reference fields are free), so this is instant.
 
 **We ran it at two sizes — N=10 first, then N=50** (2 domains, the 2×2 grid). The N=50 numbers below
 are the reportable ones; the N=10→N=50 shift is itself a finding (F3), so both are kept. Sources:
-`results/ragbench_matrix.csv` / `reference_comparison.csv` (N=10) and the `*_n50` files (N=50).
+`results/per_example/ragbench_matrix.csv` / `reference_comparison.csv` (N=10) and the `*_n50` files (N=50).
 
 > **Each metric's gap means something different — they are NOT symmetric:**
 > - **relevance** → cleanest *retriever* signal (it ignores the answer entirely). Reference =
@@ -207,7 +207,7 @@ are the reportable ones; the N=10→N=50 shift is itself a finding (F3), so both
 (N=50 reference levels: GenKnowledge adherence 0.80, relevance 0.327, completeness 0.701;
 CustomerSupport adherence 0.70, relevance 0.139, completeness 0.696. A few cells scored 48–49/50 —
 the judge skipped a handful of unparseable/timed-out answers, as designed. Full per-cell numbers in
-`results/reference_comparison_n50.csv`; charts in `results/figures_n50/`.)
+`results/per_example/reference_comparison_n50.csv`; charts in `results/per_example/figures_n50/`.)
 
 ### Findings + reasoning
 
@@ -290,7 +290,7 @@ experiment.
 **Setup:** clean one-variable ablation — `grounded_complete_norerank.yaml` is **identical** to
 `grounded_norerank.yaml` except the prompt type, run at the **same seed=42, N=50**, so it appended just
 2 cells to the existing matrix and compares head-to-head against rows we already had. Generator =
-`llama3.2:3b`, judge = `llama3.1:8b`. Source: `results/ragbench_matrix_n50.csv` (the two
+`llama3.2:3b`, judge = `llama3.1:8b`. Source: `results/per_example/ragbench_matrix_n50.csv` (the two
 `grounded_complete_norerank` rows) + `reference_comparison_n50.csv`.
 
 ### grounded_complete vs grounded (no-rerank, N=50; prompt is the only difference)
@@ -350,7 +350,7 @@ retrieval — is the bottleneck (and justifies the bigger-generator move with ev
 `grounded_norerank.yaml` except `embedder: {type: sentence_transformer, model: BAAI/bge-base-en-v1.5}`
 (768-dim) vs `minilm` (all-MiniLM-L6-v2, 384-dim). Same seed=42, N=50; appended 2 cells. Generator
 `llama3.2:3b`, judge `llama3.1:8b`. Source: the two `grounded_bge_norerank` rows in
-`results/ragbench_matrix_n50.csv`.
+`results/per_example/ragbench_matrix_n50.csv`.
 
 ### bge-base vs minilm (grounded, no-rerank, N=50; embedder is the only difference)
 
@@ -419,7 +419,7 @@ judge-parse jitter (rel 0.291→0.286). **Verified the cause directly:** probed 
 they were **3, 17, 20, 62 words** against a ~190-word (256-token) ceiling. Nothing was being truncated.
 *So the terse, low-coverage answers are a model behaviour, not a length-cap artifact* — this rules out
 the cheapest explanation for the completeness gap and (again) points at generator capability + prompting.
-(Source: `results/ragbench_matrix_n50_maxtok512.csv` vs the grounded_norerank rows.) A `--max-new-tokens`
+(Source: `results/per_example/ragbench_matrix_n50_maxtok512.csv` vs the grounded_norerank rows.) A `--max-new-tokens`
 flag was added to `scripts/run_matrix.py` (the cap was previously hardcoded at 256).
 
 ### 6B — grounded_complete + reranker: the WIN (the levers compound)
@@ -498,8 +498,8 @@ the domain where levers move and CustomerSupport stays stubborn (a real domain-d
 
 ---
 
-*Data sources: `results/judge_validation__llama3-1-8b__baseline__n50.csv` (Exp 1),
-`results/ragbench_matrix.csv` (Exp 2, N=10), `results/ragbench_matrix_n50.csv` +
-`results/reference_comparison_n50.csv` + `results/figures_n50/compare_*.png` (Exp 3, 4, 5 & 6B/C/D);
-`results/ragbench_matrix_n50_maxtok512.csv` (Exp 6A).
+*Data sources: `results/validation/judge_validation__llama3-1-8b__baseline__n50.csv` (Exp 1),
+`results/per_example/ragbench_matrix.csv` (Exp 2, N=10), `results/per_example/ragbench_matrix_n50.csv` +
+`results/per_example/reference_comparison_n50.csv` + `results/per_example/figures_n50/compare_*.png` (Exp 3, 4, 5 & 6B/C/D);
+`results/per_example/ragbench_matrix_n50_maxtok512.csv` (Exp 6A).
 See `PIPELINE_WALKTHROUGH.md` for how a single number is produced end-to-end.*

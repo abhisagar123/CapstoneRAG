@@ -134,11 +134,11 @@ SWEEP_COLS = ["model", "prompt_variant", "domain", "config", "n", "n_scored", "n
 
 
 def sweep_csv_path(model: str, prompt_variant: str, n: int) -> str:
-    """results/judge_validation__{model-slug}__{variant}__n{N}.csv — one file per
+    """results/validation/judge_validation__{model-slug}__{variant}__n{N}.csv — one file per
     (model, variant, N) so parallel runs never collide and the verdict cell can glob+merge."""
     import re
     slug = re.sub(r"[^a-zA-Z0-9]+", "-", model).strip("-").lower()
-    return f"results/judge_validation__{slug}__{prompt_variant}__n{n}.csv"
+    return f"results/validation/judge_validation__{slug}__{prompt_variant}__n{n}.csv"
 
 
 def _flatten_report(report: dict, model: str, prompt_variant: str, domain: str) -> dict:

@@ -25,7 +25,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-OUT_CSV = "results/ragbench_matrix.csv"
+OUT_CSV = "results/per_example/ragbench_matrix.csv"
 
 
 def build_judge(backend, model):

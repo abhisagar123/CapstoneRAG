@@ -174,6 +174,22 @@ def test_run_named_matrix_resumable(tmp=None):
     os.remove(out)
 
 
+def test_run_named_matrix_creates_missing_out_dir():
+    # After the results/ reorg, out_csv lives under results/{per_example,pooled}/ — a path
+    # whose dir may not exist on a fresh clone. The runner must create it, not crash.
+    import csv, shutil
+    from src.runner import build_grid, run_named_matrix
+    base = os.path.join(tempfile.gettempdir(), "_check_mkdir_results")
+    shutil.rmtree(base, ignore_errors=True)
+    out = os.path.join(base, "pooled", "ragbench_matrix_x.csv")    # nested, does NOT exist yet
+    grid = build_grid({"a.yaml": dict(BASE)}, ["Legal"])
+    run_named_matrix(grid, lambda cfg: EXAMPLES, out, segmenter=SEG, judge=JUDGE)
+    assert os.path.exists(out)                                     # dir was created + file written
+    with open(out, newline="") as f:
+        assert len(list(csv.DictReader(f))) == 1
+    shutil.rmtree(base, ignore_errors=True)
+
+
 def _run():
     fns = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
     for fn in fns:

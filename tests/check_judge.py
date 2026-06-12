@@ -191,7 +191,7 @@ def test_sweep_csv_path_encodes_model_variant_n():
     # The filename scheme that keeps parallel runs from colliding + lets the verdict glob+merge.
     from src.evaluator.judge_validate import sweep_csv_path
     p = sweep_csv_path("meta-llama/Llama-3.1-8B-Instruct", "conservative", 50)
-    assert p == "results/judge_validation__meta-llama-llama-3-1-8b-instruct__conservative__n50.csv"
+    assert p == "results/validation/judge_validation__meta-llama-llama-3-1-8b-instruct__conservative__n50.csv"
     # different model / variant / n -> different file (no clobbering)
     assert sweep_csv_path("mistral", "baseline", 50) != p
 

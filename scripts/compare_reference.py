@@ -31,8 +31,8 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-MATRIX_CSV = "results/ragbench_matrix.csv"
-OUT_CSV = "results/reference_comparison.csv"
+MATRIX_CSV = "results/per_example/ragbench_matrix.csv"
+OUT_CSV = "results/per_example/reference_comparison.csv"
 
 from src.evaluator.compare import METRICS  # noqa: E402  (after sys.path insert)
 
@@ -88,9 +88,9 @@ def main():
                          "the same N examples the matrix ran (fair head-to-head, default)")
     ap.add_argument("--seed", type=int, default=42, help="must match the matrix's sampling seed")
     ap.add_argument("--plot", action="store_true",
-                    help="also write grouped bar charts (ours vs reference) to results/figures/ "
+                    help="also write grouped bar charts (ours vs reference) to the fig dir "
                          "(needs matplotlib)")
-    ap.add_argument("--fig-dir", default="results/figures", help="where --plot writes PNGs")
+    ap.add_argument("--fig-dir", default="results/per_example/figures", help="where --plot writes PNGs")
     args = ap.parse_args()
 
     if not os.path.exists(args.matrix):
