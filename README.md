@@ -23,7 +23,7 @@ ready-made library.
 | 1a | TRACe evaluator — **math half** (the 4 metrics from gold labels) | ✅ done & validated |
 | 1b | TRACe evaluator — **LLM-judge half** (labels our own pipeline) | ✅ built; judge selected (`llama3.1:8b`, local) |
 | 1c | Modular RAG pipeline (built brick by brick) + config + experiment runner | ✅ built |
-| 2 | Strategy × domain results matrix + per-domain ablations | 🚧 first matrix produced (2 domains, N=10); scaling next |
+| 2 | Strategy × domain results matrix + per-domain ablations + reference-score comparison | 🚧 N=50 matrix on 2 domains; 5 experiments done (see `docs/EXPERIMENTS.md`); more domains next |
 | 3 | RGB robustness evaluation | ⬜ |
 | 4 | Gradio demo + report | ⬜ |
 
@@ -36,15 +36,16 @@ embedder ✅ · index + retriever ✅ (FAISS dense) · reranker + repacker ✅ �
 generator ✅ (hf for Colab + echo for tests) · output segmenter ✅ (regex + nltk) · pipeline wiring + experiment runner ✅.
 
 **🎉 The RAG pipeline + evaluator are complete** — a config (YAML in `configs/`) assembles all components and
-`run_matrix()` runs configs × domains into a resumable results CSV, and the TRACe **judge** (strong OSS model on
-Colab via the exact RAGBench Appendix-7.4 prompt; OpenAI can drop in later) produces the labels that fill in real
-scores. Two Colab notebooks now drive this: `03_judge_validation.ipynb` (pick the judge by agreement with the
-reference scores) and `04_run_matrix.ipynb` (produce the strategy × domain matrix). **Current step:** running these
-on Colab. Remaining after: analyze the matrix vs reference scores → RGB (Task 2) → demo.
+`run_matrix()` runs configs × domains into a resumable results CSV, and the TRACe **judge** (`llama3.1:8b` via the
+exact RAGBench Appendix-7.4 prompt; OpenAI can drop in later via the same interface) produces the labels that fill
+in real scores. Both a terminal runner (`scripts/run_matrix.py`) and a Colab notebook (`04_run_matrix.ipynb`) drive
+this from the same shared helpers. **Done so far:** judge selected by agreement with reference scores; an N=50
+matrix on 2 domains; the pipeline's scores compared to RAGBench's reference scores
+(`scripts/compare_reference.py`); 5 documented experiments. **Remaining:** more domains → RGB (Task 2) → demo.
 
-> **Note:** per a runtime constraint, all model inference (embedder, reranker, generator) runs on **Google
-> Colab**; the pure-Python stages (loader, chunker, indexing, repacking, prompting, evaluator) and their offline
-> tests run locally. Model-dependent checks run on Colab via a runner notebook.
+> **Compute (revised 10 Jun 2026):** open-source models run **locally via Ollama** on the dev Mac — **except
+> Chinese models**. The in-process `transformers` path (`type: hf`) remains as a Colab alternative. Pure-Python
+> stages (loader, chunker, indexing, repacking, prompting, evaluator) and all offline tests run locally with no GPU.
 
 **Validated so far:** our TRACe metric implementation reproduces RAGBench's shipped reference
 scores **exactly** (RMSE = 0; adherence 100%) across all 12 sub-datasets / 5 domains
@@ -62,8 +63,8 @@ src/
   retrieval/       # Retriever interface + dense retriever: question → nearest chunks
   reranking/       # Reranker interface + cross-encoder (accurate re-score) + noop
   repacking/       # Repacker interface + chunk-ordering strategies (forward/reverse/sides)
-  prompting/       # PromptBuilder interface + grounded/minimal prompt variants
-  generation/      # Generator interface + HuggingFace LLM (Colab) + echo (tests)
+  prompting/       # PromptBuilder interface + grounded/minimal/grounded_complete variants
+  generation/      # Generator interface + Ollama (local) + HuggingFace (Colab) + echo (tests)
   segmentation/    # SentenceSplitter (regex/nltk) + OutputSegmenter: pipeline→evaluator bridge
   config.py        # YAML experiment config: load + validate against the registry
   pipeline.py      # Pipeline: assemble components from a config; index + answer
@@ -73,7 +74,9 @@ src/
     trace.py         # the 4 TRACe metrics (relevance, utilization, completeness, adherence)
     validate.py      # validates trace.py (math half) against RAGBench reference scores
     judge_validate.py # validates the judge half: its scores vs the reference (RMSE / accuracy)
+    compare.py       # compares OUR pipeline's matrix scores to the reference scores (gaps + charts)
 configs/             # experiment definitions (one YAML = one pipeline setup) + README
+scripts/             # terminal twins of the notebooks: run_matrix / run_judge_validation / compare_reference
 tests/               # lightweight assert scripts (python tests/check_*.py)
 notebooks/
   01_eda.ipynb                  # dataset schema confirmation + chunking-lever analysis
@@ -81,7 +84,10 @@ notebooks/
   03_judge_validation.ipynb     # Colab: pick the judge by agreement with reference scores
   04_run_matrix.ipynb           # Colab: run configs × domains → strategy × domain matrix
 results/
-  evaluator_validation.csv      # the validation report card
+  evaluator_validation.csv      # math-half validation report card (RMSE=0 vs reference)
+  judge_validation__*.csv       # judge-half agreement with reference (per candidate model)
+  ragbench_matrix*.csv          # the strategy × domain results matrix (N=10 and N=50)
+  reference_comparison*.csv     # our scores vs reference, per metric/domain (+ figures_n50/ charts)
 docs/
   PROJECT_PLAN.md  HLD.md  LLD.md   # plan + high-/low-level design
   PIPELINE_WALKTHROUGH.md           # one question traced through every stage, end to end

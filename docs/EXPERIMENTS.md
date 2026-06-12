@@ -337,6 +337,72 @@ it" is exactly the rigorous-evaluation story the project is graded on.
 
 ---
 
+## Experiment 5 — Stronger embedder (MiniLM → BGE): a control for "is retrieval the bottleneck?"
+
+**Question:** the "Best Practices in RAG" paper ranks embedding models on MS MARCO (Table 2) and puts
+our `all-MiniLM` family at the **bottom** (MRR@10 ≈ 11) with **BAAI/bge-base ≈ 3× higher** (≈ 37). So a
+MiniLM→BGE swap is a *paper-validated retrieval upgrade*. But Exp 3 said **retrieval is NOT our gap**
+(relevance already at/above reference). So this is deliberately a **control**: does a real retrieval
+improvement move our TRACe? If it barely moves, that's independent confirmation the generator — not
+retrieval — is the bottleneck (and justifies the bigger-generator move with evidence, not assumption).
+
+**Setup:** clean one-variable ablation — `grounded_bge_norerank.yaml` is identical to
+`grounded_norerank.yaml` except `embedder: {type: sentence_transformer, model: BAAI/bge-base-en-v1.5}`
+(768-dim) vs `minilm` (all-MiniLM-L6-v2, 384-dim). Same seed=42, N=50; appended 2 cells. Generator
+`llama3.2:3b`, judge `llama3.1:8b`. Source: the two `grounded_bge_norerank` rows in
+`results/ragbench_matrix_n50.csv`.
+
+### bge-base vs minilm (grounded, no-rerank, N=50; embedder is the only difference)
+
+| metric | GenKnowledge Δ | CustomerSupport Δ |
+|---|---|---|
+| **relevance** | +0.002 (~flat) | **−0.050** (down) |
+| utilization | −0.021 | −0.030 |
+| completeness | −0.006 (~flat) | +0.017 (~flat) |
+| adherence | −0.020 | −0.052 |
+
+### Findings + reasoning
+
+**F1 — The stronger embedder did NOT improve TRACe (the informative null result).** Relevance was flat
+on GenKnowledge (+0.002) and *fell* on CustomerSupport (−0.050); nothing improved materially. A
+paper-validated retrieval upgrade produced ~no retrieval gain in our setup. **This is not "BGE is
+worse than MiniLM"** — it's that a better embedder only helps when retrieval is *hard*, and ours isn't:
+
+**F2 — Why it didn't help: small candidate pools + a ranking-vs-TRACe mismatch.** Two reasons. (a) We
+run **per-example** corpus mode — the retriever picks top-k from *one example's own documents*, a tiny
+already-on-topic pool. With little to discriminate, MiniLM and BGE retrieve nearly the same chunks. (b)
+The paper's BGE advantage is on **MRR@10** (does the #1 result rank well), whereas our **relevance** is
+*fraction of retrieved sentences that are relevant* — different target. So the paper's embedder ranking
+doesn't transfer to our metric in this configuration. (Connects to §13: these two domains ship
+pre-segmented short docs → small pools → weak retrieval lever, exactly as EDA predicted.)
+
+**F3 — The small drops trace back to the generator, not the embedder.** The −0.05 relevance on
+CustomerSupport is ≈±2–3 sentences at N=50 (near noise), but adherence/utilization dipped too. Reasoning:
+BGE retrieved *slightly different* chunks, and the weak 3B generator produced slightly less-grounded
+answers off them. That's the generator being **sensitive to retrieval reshuffling**, not the embedder
+being bad — another finger pointing at the generator as the fragile link.
+
+**F4 — The control fired as designed → retrieval is confirmed not-the-bottleneck.** Three independent
+interventions now agree: reranker (Exp 3 F3, no adherence help at N=50), prompt (Exp 4, only a traded
+gain), embedder (here, no help). **All the retrieval/prompt-side levers are largely tapped out on these
+two domains; the generator is the lever.**
+
+### Caveats
+- **Per-example mode is the LEAST favorable setting for an embedder swap** (tiny pools). On a **pooled**
+  per-domain corpus (the real Phase-2 setting, large pool) or on **CUAD** (1 long doc, real chunking +
+  retrieval challenge), BGE could still matter. So this is "no help *in this configuration*," **not**
+  "BGE is useless." Re-test embedder on pooled/CUAD before concluding globally.
+- N=50; the CustomerSupport −0.05 is near noise. The *direction of the conclusion* (no gain) is what's
+  robust, not the exact deltas.
+- Judge over-marking (Exp 1) applies equally to both embedders, so the *delta* is unaffected.
+
+**Takeaway:** a paper-recommended upgrade that *didn't* move our metric is a real finding, not a failed
+experiment — it's the gap analysis (Exp 3) being **confirmed by an independent, paper-backed control**.
+The evidence that the generator is the bottleneck is now triangulated across three levers. Next
+experiment: the generator itself.
+
+---
+
 ## Open follow-ups (carried forward)
 
 1. **Scale the matrix:** all 5 domains, N=30–50, so numbers are reportable not just directional.
@@ -344,18 +410,22 @@ it" is exactly the rigorous-evaluation story the project is graded on.
 2. ✅ **Compare to reference scores (Experiment 3, done):** built `src/evaluator/compare.py` +
    `scripts/compare_reference.py`. Headline: retrieval is at/above reference; **adherence is the gap**
    → next effort goes to the generator + prompt, not the retriever.
-3. **More levers (now aimed by Exp 3):** **bigger generator FIRST** — Exp 4 showed the prompt alone
-   trades adherence for completeness on a 3B model; a larger generator may get both. Then the
-   `grounded_complete` prompt × generator-size interaction; then chunking (esp. CUAD), embedder, repacker.
+3. **Bigger generator (NOW the clear priority — triangulated by Exp 3/4/5):** reranker, prompt, AND
+   embedder all failed to move the adherence/completeness gap; the generator is the bottleneck. Swap
+   `llama3.2:3b` → `llama3.1:8b` / `gemma2:9b` (both pulled). Then the `grounded_complete` prompt ×
+   generator-size interaction.
 4. **Confirm Exp 4 at larger N:** the −0.040 adherence cost is within noise; re-run grounded_complete
    at higher N (and add it to the rerank arm) to see if the completeness win holds and the cost is real.
-5. **Judge quality pass:** Llama-3-70B / Gemma-2-27B as judge; schema-constrained JSON.
-5. **CUAD:** judge-validation is impractical locally (Exp 1); decide whether to report CUAD pipeline
+5. **Re-test embedder where it CAN matter (Exp 5 caveat):** bge vs minilm on a **pooled** corpus or on
+   **CUAD** (big candidate pool / real retrieval challenge) — per-example mode was too easy to show a gap.
+6. **Other levers:** chunking (esp. CUAD), repacker (forward/reverse/sides), hybrid retrieval (BM25+RRF).
+7. **Judge quality pass:** Llama-3-70B / Gemma-2-27B as judge; schema-constrained JSON.
+8. **CUAD:** judge-validation is impractical locally (Exp 1); decide whether to report CUAD pipeline
    scores with a caveat or document the limitation.
 
 ---
 
 *Data sources: `results/judge_validation__llama3-1-8b__baseline__n50.csv` (Exp 1),
 `results/ragbench_matrix.csv` (Exp 2, N=10), `results/ragbench_matrix_n50.csv` +
-`results/reference_comparison_n50.csv` + `results/figures_n50/compare_*.png` (Exp 3 & 4).
+`results/reference_comparison_n50.csv` + `results/figures_n50/compare_*.png` (Exp 3, 4 & 5).
 See `PIPELINE_WALKTHROUGH.md` for how a single number is produced end-to-end.*

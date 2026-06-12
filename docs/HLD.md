@@ -173,7 +173,7 @@ only place subjective error can enter — so that's where validation effort conc
 |---|---|---|
 | Data | HF `datasets` → `rungalileo/ragbench` | official source |
 | Chunking | fixed 512/50 baseline | compare PGC, DFC, sentence-group (domain-dependent) |
-| Embeddings | `BAAI/bge-base-en-v1.5` | MiniLM for fast iteration; all embedding runs on Colab (per constraint) |
+| Embeddings | `all-MiniLM-L6-v2` baseline | BGE-base tested (Exp 5); runs locally (sentence-transformers) or on Colab |
 | Vector store | FAISS / ChromaDB | local, simple |
 | Sparse / fusion | `rank-bm25` + RRF | for hybrid retrieval |
 | Reranker | cross-encoder MiniLM / monoT5 | |
@@ -192,18 +192,19 @@ a **per-domain config**, and the analysis explicitly reports where each lever do
 
 ```mermaid
 flowchart LR
-    subgraph local["Local — pure-Python (no models) + offline tests"]
+    subgraph local["Local Mac (M3 Max) — pure-Python + Ollama models + offline tests"]
         DL["data loading"] --- CHK["chunking"] --- IDXP["FAISS index / repack / prompt"] --- EVALM["TRACe math"]
+        OLL["Ollama: judge llama3.1:8b + generator llama3.2:3b"] --- EMBL["embeddings / reranking (sentence-transformers)"]
     end
-    subgraph colab["Google Colab (GPU) — ALL model inference"]
-        EMB["embeddings"] --- RERANK["reranking"] --- GENC["generation (4-bit)"] --- VAL["model-dependent checks"]
+    subgraph colab["Google Colab (GPU) — ALTERNATIVE (type: hf, 4-bit)"]
+        GENC["in-process transformers inference"] --- VAL["model-dependent checks"]
     end
     subgraph hf["HuggingFace Spaces"]
         GR["Gradio demo (best per-domain config)"]
     end
     local -->|push| REPO["GitHub repo"]
     REPO --> colab
-    colab -->|persist index/embeddings| DRIVE["Google Drive"]
+    colab -.persist index/embeddings.-> DRIVE["Google Drive"]
     REPO --> hf
 ```
 
