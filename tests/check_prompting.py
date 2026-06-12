@@ -11,7 +11,7 @@ import src  # noqa: F401
 from src.registry import build, available
 from src.prompting import (
     PromptBuilder, GroundedPromptBuilder, MinimalPromptBuilder,
-    GroundedCompletePromptBuilder, format_chunks,
+    GroundedCompletePromptBuilder, ExtractivePromptBuilder, format_chunks,
 )
 from src.indexing import RetrievedChunk
 from src.chunking import Chunk
@@ -23,7 +23,7 @@ def _chunks(texts):
 
 
 def test_registered():
-    assert set(available("prompt")) == {"grounded", "minimal", "grounded_complete"}
+    assert set(available("prompt")) == {"grounded", "minimal", "grounded_complete", "extractive"}
 
 
 def test_format_chunks_numbered_in_order():
@@ -71,8 +71,19 @@ def test_grounded_complete_refusal_configurable():
     assert "NO ANSWER" in custom
 
 
+def test_extractive_keeps_grounding_adds_quote_steer():
+    # The Exp-6D variant: strict grounding (held) PLUS a stick-to-source-wording steer.
+    g = GroundedPromptBuilder().build("What is X?", _chunks(["ctx one"]))
+    e = ExtractivePromptBuilder().build("What is X?", _chunks(["ctx one"]))
+    assert "ONLY the context" in e                           # grounding preserved
+    assert "cannot answer" in e                              # refusal preserved
+    assert "quote" in e.lower()                              # the new extractive instruction
+    assert "quote" not in g.lower()                          # ...which the baseline lacks
+    assert "What is X?" in e and "[1] ctx one" in e
+
+
 def test_both_satisfy_interface_and_return_str():
-    for t in ("grounded", "minimal", "grounded_complete"):
+    for t in ("grounded", "minimal", "grounded_complete", "extractive"):
         b = build("prompt", t)
         assert isinstance(b, PromptBuilder)
         out = b.build("q?", _chunks(["c"]))

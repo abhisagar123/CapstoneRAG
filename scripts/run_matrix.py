@@ -65,6 +65,14 @@ def main():
     ap.add_argument("--out", default=OUT_CSV,
                     help="output matrix CSV (use a distinct file for a different N so the "
                          "resumable skip-logic doesn't treat an N=10 run as already done)")
+    ap.add_argument("--max-new-tokens", type=int, default=256,
+                    help="generator answer-length cap (Ollama num_predict). Raise to test whether "
+                         "terse answers are TRUNCATED vs the model being terse (targets completeness). "
+                         "NOTE: changing this keeps the same config_id, so run such configs into a "
+                         "SEPARATE --out file (config_id is built from stage TYPES, not params).")
+    ap.add_argument("--configs", nargs="+", default=None,
+                    help="only run config files whose name contains one of these substrings "
+                         "(e.g. --configs grounded_norerank). Default: all configs/*.yaml.")
     ap.add_argument("--workers", type=int, default=1, help="(reserved) per-example concurrency")
     ap.add_argument("--verdict", action="store_true", help="just print the matrix pivot and exit")
     args = ap.parse_args()
@@ -84,14 +92,21 @@ def main():
     load_embedders(); load_generators(); load_rerankers()
 
     judge = build_judge(args.backend, args.judge_model)
-    gen_override = ({"type": "ollama", "model": args.gen_model, "max_new_tokens": 256}
+    gen_override = ({"type": "ollama", "model": args.gen_model, "max_new_tokens": args.max_new_tokens}
                     if args.backend == "ollama"
-                    else {"type": "hf", "model": args.gen_model, "load_in_4bit": True})
+                    else {"type": "hf", "model": args.gen_model, "load_in_4bit": True,
+                          "max_new_tokens": args.max_new_tokens})
 
     raw = {os.path.basename(p): yaml.safe_load(open(p)) for p in sorted(glob.glob("configs/*.yaml"))}
+    if args.configs:                                 # filter to a subset by filename substring
+        raw = {name: c for name, c in raw.items() if any(s in name for s in args.configs)}
+        if not raw:
+            print(f"no configs match {args.configs} — nothing to run.")
+            return
     grid = build_grid(raw, args.domains, generator_override=gen_override)
     print(f"backend={args.backend}  judge={args.judge_model}  gen={args.gen_model}  "
-          f"domains={args.domains}  N={args.n}  -> {len(grid)} (config x domain) runs\n")
+          f"max_new_tokens={args.max_new_tokens}  domains={args.domains}  N={args.n}  "
+          f"configs={list(raw)}  -> {len(grid)} (config x domain) runs\n")
 
     seg = OutputSegmenter(RegexSplitter())
     cache = {}

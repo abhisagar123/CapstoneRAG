@@ -1,0 +1,21 @@
+# Experiment 6C: repacker reverse -> sides (lost-in-the-middle ablation).
+# Pair with grounded_norerank.yaml -> isolates the REPACKER's effect. "reverse" puts the
+# most-relevant chunk LAST; "sides" puts the strongest chunks at BOTH ends (head + tail),
+# the positions LLMs attend to most (Liu et al. "lost in the middle"). Paper found reverse~sides;
+# this is a clean cheap test of whether ordering moves anything for our 3B generator.
+# Only `repacker` differs from grounded_norerank.yaml; all else identical.
+domain: Legal
+
+chunker:   { type: fixed, size: 512, overlap: 50 }
+embedder:  { type: minilm }
+index:     { type: faiss, corpus_mode: per_example }
+
+retriever: { type: dense, k: 20 }
+reranker:  { type: none, top_n: 5 }
+repacker:  { type: sides }                            # the one variable vs grounded_norerank.yaml (was: reverse)
+prompt:    { type: grounded }
+generator: { type: ollama, model: llama3.1:8b, max_new_tokens: 256 }   # overridden by --gen-model at run time
+
+splitter:  { type: regex }
+
+seed: 42

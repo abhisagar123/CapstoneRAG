@@ -403,6 +403,78 @@ experiment: the generator itself.
 
 ---
 
+## Experiment 6 — Squeezing the small (3B) generator: four cheap levers (A/B/C/D)
+
+**Question:** before paying for a bigger/slower generator, how far can we push the fast `llama3.2:3b`?
+Each sub-experiment is a one-variable change off the `grounded_norerank` baseline (or its rerank
+sibling), N=50, same seed. Generator stays `llama3.2:3b`, judge `llama3.1:8b`. Whatever helps here also
+transfers to the bigger model later, so this is not throwaway work.
+
+### 6A — Longer answers (max_new_tokens 256 → 512): a VERIFIED NULL
+
+**Hypothesis:** completeness (our worst gap) might be low because answers are *truncated* at 256 tokens,
+not because the model is terse. **Result: raising the cap changed nothing** — GenKnowledge identical to
+the last decimal (rel 0.411, util 0.175, compl 0.395, adh 0.640); CustomerSupport moved only by
+judge-parse jitter (rel 0.291→0.286). **Verified the cause directly:** probed real grounded answers —
+they were **3, 17, 20, 62 words** against a ~190-word (256-token) ceiling. Nothing was being truncated.
+*So the terse, low-coverage answers are a model behaviour, not a length-cap artifact* — this rules out
+the cheapest explanation for the completeness gap and (again) points at generator capability + prompting.
+(Source: `results/ragbench_matrix_n50_maxtok512.csv` vs the grounded_norerank rows.) A `--max-new-tokens`
+flag was added to `scripts/run_matrix.py` (the cap was previously hardcoded at 256).
+
+### 6B — grounded_complete + reranker: the WIN (the levers compound)
+
+The missing cell of Exp 4 — the completeness prompt **with** the cross-encoder reranker.
+
+**Result: `grounded_complete_rerank` reaches GenKnowledge adherence 0.714 — the best of ANY config, and
+the smallest adherence gap to reference in the project (−0.086, vs −0.16 at the plain grounded baseline).**
+Isolating the *prompt* effect when reranking is on (vs `grounded_rerank`), GenKnowledge lifts on **all
+metrics at once**: utilization +0.114, completeness +0.142, adherence +0.048.
+
+*Reasoning — an interaction effect a one-at-a-time matrix misses.* Exp 3 F3 found the reranker gave **no**
+adherence help with the *plain* grounded prompt. But the reranker (better chunks) and grounded_complete
+("use them fully") **compound**: with genuinely relevant chunks in front of it AND an instruction to cover
+them, the 3B grounds more of its answer instead of drifting. Two levers each judged marginal alone are
+**synergistic together** — the headline finding of this batch. ⚠️ **GenKnowledge only:** on CustomerSupport
+6B was flat-to-down (adh 0.469→0.408). So it's "best lever we've found, on the domain where levers work,"
+not universal.
+
+### 6C — sides repacker (vs reverse): the clear LOSER
+
+Swapping `reverse` → `sides` **hurt almost everything**: GenKnowledge completeness −0.091, CustomerSupport
+completeness −0.150, adherence −0.060 in both. **Verdict: `reverse` is clearly better than `sides` for our
+setup; drop `sides`.** This *contradicts* the Best Practices paper's "reverse ≈ sides" — a legitimate
+finding: the paper used a much stronger generator; a 3B apparently handles "most-relevant-chunk-last"
+(reverse) better than splitting the strong chunks to both ends (sides). Repacker ordering is now a
+closed question for us — `reverse` stays.
+
+### 6D — extractive prompt ("quote the source"): a narrow, mostly-negative split
+
+A new prompt (`extractive`) attacking adherence from a different angle than grounded_complete: "quote or
+closely paraphrase the context; do not rephrase." **Result: mostly negative** — it made the already-terse
+3B *terser* (GenKnowledge completeness −0.057, utilization −0.008; CustomerSupport −0.056/−0.041). The one
+bright spot: **CustomerSupport adherence 0.500 — the best no-rerank adherence on that domain** (+0.040).
+*Reasoning:* forcing source-wording cuts the invented phrasings that break adherence, which helps on
+procedural CustomerSupport answers, but the "don't elaborate" framing suppresses coverage everywhere else.
+Niche, not a general lever; documented and parked.
+
+### Scoreboard + takeaway
+
+| sub-exp | lever | result | verdict |
+|---|---|---|---|
+| 6A | max_new_tokens 256→512 | null (answers never hit the cap — verified 3–62 words) | rules out truncation as the cause |
+| **6B** | grounded_complete **+ reranker** | **adh 0.714 GenKnowledge (best config); prompt+reranker compound** | **the win — carry into the bigger-gen run** |
+| 6C | sides repacker | worse across the board | reverse > sides; drop sides |
+| 6D | extractive prompt | terser; only a CustomerSupport-adherence niche | parked |
+
+**Net:** we *did* squeeze a real win out of the 3B — **`grounded_complete` + cross-encoder reranker** is the
+best config to date (on GenKnowledge), and the prompt×reranker **synergy** is the key new insight. It also
+gives the bigger-generator experiment a sharp hypothesis: run **grounded_complete + rerank** there, since
+that's where the compounding lives. Caveats: all N=50 (directional on exact magnitudes); GenKnowledge is
+the domain where levers move and CustomerSupport stays stubborn (a real domain-difficulty finding).
+
+---
+
 ## Open follow-ups (carried forward)
 
 1. **Scale the matrix:** all 5 domains, N=30–50, so numbers are reportable not just directional.
@@ -410,22 +482,24 @@ experiment: the generator itself.
 2. ✅ **Compare to reference scores (Experiment 3, done):** built `src/evaluator/compare.py` +
    `scripts/compare_reference.py`. Headline: retrieval is at/above reference; **adherence is the gap**
    → next effort goes to the generator + prompt, not the retriever.
-3. **Bigger generator (NOW the clear priority — triangulated by Exp 3/4/5):** reranker, prompt, AND
-   embedder all failed to move the adherence/completeness gap; the generator is the bottleneck. Swap
-   `llama3.2:3b` → `llama3.1:8b` / `gemma2:9b` (both pulled). Then the `grounded_complete` prompt ×
-   generator-size interaction.
-4. **Confirm Exp 4 at larger N:** the −0.040 adherence cost is within noise; re-run grounded_complete
-   at higher N (and add it to the rerank arm) to see if the completeness win holds and the cost is real.
+3. **Bigger generator — the clear priority, with a SHARP hypothesis from Exp 6B.** The 3B is the
+   bottleneck (Exp 3/4/5), AND Exp 6B found `grounded_complete` + reranker is the best 3B config (the
+   prompt×reranker synergy). So run the bigger generator (`llama3.1:8b` / `gemma2:9b`, both pulled) on
+   **`grounded_complete_rerank`**, not the plain baseline — test whether the synergy amplifies with capacity.
+4. **Confirm Exp 6B at larger N + on more domains:** the GenKnowledge win is sizable but CustomerSupport
+   was flat — is the synergy GenKnowledge-specific or general? Needs more domains / higher N.
 5. **Re-test embedder where it CAN matter (Exp 5 caveat):** bge vs minilm on a **pooled** corpus or on
    **CUAD** (big candidate pool / real retrieval challenge) — per-example mode was too easy to show a gap.
-6. **Other levers:** chunking (esp. CUAD), repacker (forward/reverse/sides), hybrid retrieval (BM25+RRF).
-7. **Judge quality pass:** Llama-3-70B / Gemma-2-27B as judge; schema-constrained JSON.
-8. **CUAD:** judge-validation is impractical locally (Exp 1); decide whether to report CUAD pipeline
+6. ✅ **Repacker decided (Exp 6C):** `reverse` > `sides` for our setup — drop `sides`. (forward untested but low-priority.)
+7. **Other levers:** chunking (esp. CUAD), hybrid retrieval (BM25+RRF) — best on a pooled corpus.
+8. **Judge quality pass:** Llama-3-70B / Gemma-2-27B as judge; schema-constrained JSON.
+9. **CUAD:** judge-validation is impractical locally (Exp 1); decide whether to report CUAD pipeline
    scores with a caveat or document the limitation.
 
 ---
 
 *Data sources: `results/judge_validation__llama3-1-8b__baseline__n50.csv` (Exp 1),
 `results/ragbench_matrix.csv` (Exp 2, N=10), `results/ragbench_matrix_n50.csv` +
-`results/reference_comparison_n50.csv` + `results/figures_n50/compare_*.png` (Exp 3, 4 & 5).
+`results/reference_comparison_n50.csv` + `results/figures_n50/compare_*.png` (Exp 3, 4, 5 & 6B/C/D);
+`results/ragbench_matrix_n50_maxtok512.csv` (Exp 6A).
 See `PIPELINE_WALKTHROUGH.md` for how a single number is produced end-to-end.*
