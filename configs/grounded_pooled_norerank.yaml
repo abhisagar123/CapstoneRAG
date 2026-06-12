@@ -1,0 +1,25 @@
+# Experiment 7: POOLED corpus (real RAG) — the same grounded baseline but the retriever
+# searches the WHOLE domain corpus, not just each question's own docs.
+# Pair with grounded_norerank.yaml -> isolates CORPUS MODE (per_example -> pooled): how much
+# does our own system degrade when it must find the needle in the full haystack? This is also
+# where retrieval levers (embedder, hybrid, chunking) should start to matter (Exp 5 caveat).
+# ONLY index.corpus_mode differs from grounded_norerank.yaml; all else identical.
+#
+# NOTE: in pooled mode our retrieval universe != the reference's per-question docs, so
+# relevance/utilization/completeness are valid as OUR-OWN scores but NOT apples-to-apples vs
+# the RAGBench reference (adherence still is). We compute all four; comparison decided later.
+domain: Legal
+
+chunker:   { type: fixed, size: 512, overlap: 50 }
+embedder:  { type: minilm }
+index:     { type: faiss, corpus_mode: pooled }       # the one variable vs grounded_norerank.yaml (was per_example)
+
+retriever: { type: dense, k: 20 }
+reranker:  { type: none, top_n: 5 }
+repacker:  { type: reverse }
+prompt:    { type: grounded }
+generator: { type: ollama, model: llama3.1:8b, max_new_tokens: 256 }   # overridden by --gen-model at run time
+
+splitter:  { type: regex }
+
+seed: 42

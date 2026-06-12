@@ -24,17 +24,31 @@ A clean 2×2 that varies **one lever at a time**, holding everything else fixed:
 Because only one component changes between any adjacent pair, a score difference is
 attributable to that single component — the "change one thing at a time" rule.
 
-## Added experiments (each = `grounded_norerank` + one changed component)
+## Added experiments (each = a one-variable swap off `grounded_norerank.yaml`)
 
-Both are clean one-variable swaps off `grounded_norerank.yaml`, so they compare
-head-to-head against it at the same seed/N (see `docs/EXPERIMENTS.md` Exp 4 & 5):
+Each compares head-to-head against `grounded_norerank.yaml` (or its rerank sibling) at the
+same seed/N — only the named component changes (see `docs/EXPERIMENTS.md` Exp 4–7):
 
 | config | changed component | lever tested |
 |---|---|---|
 | `grounded_complete_norerank.yaml` | prompt → `grounded_complete` | **Completeness** (a "be thorough" steer on top of grounding) |
 | `grounded_bge_norerank.yaml`      | embedder → `bge-base-en-v1.5` | **Relevance/retrieval** (stronger embedder than MiniLM) |
+| `grounded_complete_rerank.yaml`   | prompt + reranker ON | the prompt×reranker **synergy** (Exp 6B — best config so far) |
+| `grounded_sides_norerank.yaml`    | repacker → `sides` | chunk ordering (Exp 6C — `reverse` won, `sides` parked) |
+| `extractive_norerank.yaml`        | prompt → `extractive` | **Adherence** via "quote the source" (Exp 6D) |
+| `grounded_pooled_norerank.yaml`   | index → `corpus_mode: pooled` | **real-RAG retrieval** (Exp 7 — search the whole domain, not just the question's docs) |
 
-(So `configs/` holds **6** configs total: the 2×2 grid + these 2.)
+### ⚠️ Pooled vs per-example corpus mode (important)
+- **`per_example`** (default for all the above except the pooled config): each question is
+  answered against ONLY its own documents. This matches RAGBench's reference-score universe,
+  so our scores are apples-to-apples vs the reference.
+- **`pooled`**: the index is built ONCE from the WHOLE domain corpus and every question
+  retrieves from it (real needle-in-haystack RAG). Our retrieval universe ≠ the reference's
+  per-question docs, so relevance/utilization/completeness are valid as OUR-OWN scores but are
+  **NOT apples-to-apples vs the reference** (adherence still is). All four are still computed;
+  whether to run the reference comparison in pooled mode is a later call. Run pooled into a
+  **separate `--out` file** (its scores aren't comparable to the per-example matrix). The runner
+  loads the full domain corpus automatically for any config whose `corpus_mode` is `pooled`.
 
 ## Schema (every config has these keys)
 

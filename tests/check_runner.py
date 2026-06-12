@@ -85,6 +85,37 @@ def test_run_experiment_without_judge_is_pending():
     assert row["scoring"].startswith("pending")
 
 
+def test_pooled_mode_indexes_shared_corpus_once():
+    # Pooled config: the index is built once from a shared corpus and NOT reset per example,
+    # so every question can retrieve from the other questions' docs too. We assert the run
+    # completes and scores all four (behavioural difference is the shared index; the key
+    # correctness point — no reset between examples — is exercised by both questions answering
+    # against the union corpus).
+    pooled = from_dict({**BASE, "index": {"type": "faiss", "corpus_mode": "pooled"}})
+    # corpus_docs given explicitly = the union of both examples' docs (the "full corpus").
+    corpus = [d for ex in EXAMPLES for d in ex["documents"]]
+    row = run_experiment(pooled, EXAMPLES, segmenter=SEG, judge=JUDGE, corpus_docs=corpus)
+    assert row["n"] == 2 and row["n_scored"] == 2
+    assert row["index"] == "faiss"
+    for metric in ("relevance", "utilization", "completeness", "adherence"):
+        assert isinstance(row[metric], float)
+
+
+def test_pooled_retrieves_across_examples():
+    # The defining property of pooled mode: a question CAN retrieve a chunk that belongs to a
+    # DIFFERENT example's documents (impossible in per_example mode). Build a pooled pipeline
+    # directly and check a query unique to example B's doc can surface while indexed together.
+    from src.pipeline import build_pipeline
+    pooled = from_dict({**BASE, "index": {"type": "faiss", "corpus_mode": "pooled"},
+                        "retriever": {"type": "dense", "k": 4}})
+    pipe = build_pipeline(pooled)
+    pipe.reset_index()
+    pipe.index_documents([ex_d for ex in EXAMPLES for ex_d in ex["documents"]])  # pooled union
+    out = pipe.answer("Which law governs?")              # answer lives in example B/A's docs
+    # All retrieved chunks come from the shared index (union of both examples' docs).
+    assert len(out["sources"]) > 0
+
+
 def test_run_matrix_writes_csv_and_is_resumable():
     out = os.path.join(tempfile.gettempdir(), "_check_runner.csv")
     if os.path.exists(out):

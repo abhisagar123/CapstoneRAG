@@ -374,17 +374,27 @@ splitter:   { type: regex }                             # bridge to the judge
 
 ```python
 # src/runner.py — AS-BUILT
-def run_experiment(cfg, examples, *, segmenter: OutputSegmenter, judge=None) -> dict:
-    # for each example: reset_index → index_documents(its docs) → answer → segment → [judge → score]
+def run_experiment(cfg, examples, *, segmenter, judge=None, corpus_docs=None) -> dict:
+    # CORPUS MODE branches on cfg.index.params['corpus_mode']:
+    #   'per_example' (default): for each ex → reset_index → index_documents(ex's own docs) →
+    #       answer → segment → [judge → score]. Matches the reference-score universe.
+    #   'pooled': build the index ONCE from a shared corpus (corpus_docs if given, else the
+    #       dedup'd union of the examples' docs), NO reset between examples → every question
+    #       retrieves from the whole corpus (real needle-in-haystack RAG).
     # returns one row: {config_id, domain, stage types, n, n_scored, mean TRACe scores, scoring}
     # judge=None → answers only (scoring="pending"); a Judge object → real scores.
     # A judge that emits unparseable JSON on one example is SKIPPED + counted (n - n_scored), not fatal.
 
-def run_matrix(configs, examples_for, out_csv: str, *, segmenter=None, judge=None) -> None:
-    # loop configs; examples_for(cfg) supplies that config's domain examples.
-    # writes one row per (config_id, domain) AS IT FINISHES (f.flush) and SKIPS already-done
-    # pairs → RESUMABLE across a Colab disconnect.
+def run_named_matrix(grid, examples_for, out_csv, *, segmenter=None, judge=None, corpus_for=None):
+    # loop (config_name, cfg); examples_for(cfg) supplies that config's eval examples.
+    # corpus_for(cfg) (optional) supplies the pooled shared corpus for a domain (None → per-example).
+    # writes one config_NAME-keyed row per (config_name, domain) AS IT FINISHES (reopen-per-row,
+    # f.flush) and SKIPS already-done pairs → RESUMABLE + file-swap-safe.
+    # (run_matrix() is the older config_id-keyed twin; build_grid() expands raw configs × domains.)
 ```
+> ⚠️ **Pooled caveat:** in `pooled` mode our retrieval universe ≠ the reference's per-question
+> docs, so relevance/utilization/completeness are valid as OUR-OWN scores but NOT comparable to
+> the RAGBench reference (adherence still is). Run pooled into a separate output CSV.
 
 Each row records the config's stage types + its mean scores, so the results matrix is reproducible and
 diffable. One component changes at a time across rows — that is what makes the matrix interpretable.

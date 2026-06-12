@@ -72,20 +72,54 @@ def _mean(values: list) -> float | str:
     return sum(nums) / len(nums) if nums else ""
 
 
-def run_experiment(cfg, examples, *, segmenter: OutputSegmenter, judge=None) -> dict:
+def _dedup_docs(docs) -> list[str]:
+    """Unique documents, order-preserving (the pooled corpus is the dedup'd union)."""
+    seen, out = set(), []
+    for d in docs:
+        if d not in seen:
+            seen.add(d)
+            out.append(d)
+    return out
+
+
+def run_experiment(cfg, examples, *, segmenter: OutputSegmenter, judge=None,
+                   corpus_docs=None) -> dict:
     """Run ONE config over a list of examples; return one aggregated result row.
 
-    `examples`: RAGBench dicts (need 'question' and 'documents'). Each example's
-    own documents are indexed per-example (corpus_mode 'per_example').
+    `examples`: RAGBench dicts (need 'question' and 'documents'). We ANSWER + SCORE
+    these N examples.
+
+    Corpus mode (read from cfg.index.params['corpus_mode']) decides WHAT the retriever
+    searches over:
+      * 'per_example' (default): for each question, the index holds ONLY that question's
+        own documents (matches RAGBench's reference-score universe). The index is reset
+        between examples. This is the validated path used by Exp 1-6.
+      * 'pooled': the index is built ONCE from a shared corpus and every question retrieves
+        from it (real needle-in-haystack RAG). The corpus is `corpus_docs` if given (e.g.
+        the FULL domain's documents), else the dedup'd union of the examples' own docs.
+        ⚠️ In pooled mode our retrieval universe ≠ the reference's per-question universe, so
+        relevance/utilization/completeness are valid as OUR-OWN scores but are NOT
+        apples-to-apples vs the RAGBench reference (adherence still is). We compute all four
+        regardless; whether to compare to reference is decided later from the results.
     """
     pipe = build_pipeline(cfg)
+    pooled = cfg.index.params.get("corpus_mode") == "pooled"
     n, n_scored = 0, 0
     score_lists = {"relevance": [], "utilization": [], "completeness": [], "adherence": []}
 
-    for ex in examples:
-        # Per-example corpus: clear the index, index just this question's docs, answer.
+    if pooled:
+        # Build the shared index ONCE, then never reset between questions.
+        docs = corpus_docs if corpus_docs is not None else [d for ex in examples for d in ex["documents"]]
         pipe.reset_index()
-        pipe.index_documents(ex["documents"])
+        n_chunks = pipe.index_documents(_dedup_docs(docs))
+        print(f"   [pooled] indexed {n_chunks} chunks from {len(_dedup_docs(docs))} unique docs", flush=True)
+
+    for ex in examples:
+        if not pooled:
+            # Per-example corpus: clear the index, index just this question's docs.
+            pipe.reset_index()
+            pipe.index_documents(ex["documents"])
+        # pooled: the shared index built above is reused for every question (no reset).
         out = pipe.answer(ex["question"])
         n += 1
 
@@ -194,19 +228,27 @@ def _named_done(out_csv: str) -> set:
         return {(r["config_name"], r["domain"]) for r in csv.DictReader(f)}
 
 
-def run_named_matrix(grid, examples_for, out_csv: str, *, segmenter=None, judge=None) -> None:
+def run_named_matrix(grid, examples_for, out_csv: str, *, segmenter=None, judge=None,
+                     corpus_for=None) -> None:
     """Run a [(config_name, cfg)] grid -> one CSV row per (config_name, domain).
 
     Resumable AND file-swap-safe: re-reads the done-set and re-opens the file per row
     (open->write->close), so a git/IDE replacement mid-run can't orphan writes (the
     bug that hit the judge sweep). examples_for(cfg) supplies that config's examples.
+
+    `corpus_for(cfg)` (optional): for POOLED configs, returns the shared corpus docs to
+    index once (e.g. the full domain's documents). None (default) → per-example mode uses
+    each question's own docs. Ignored by per_example configs.
     """
     for name, cfg in grid:
         if (name, cfg.domain) in _named_done(out_csv):
             print(f"skip (done): {name} / {cfg.domain}")
             continue
         print(f"running {name} on {cfg.domain} ...", flush=True)
-        row = {"config_name": name, **run_experiment(cfg, examples_for(cfg), segmenter=segmenter, judge=judge)}
+        corpus = corpus_for(cfg) if corpus_for is not None else None
+        row = {"config_name": name,
+               **run_experiment(cfg, examples_for(cfg), segmenter=segmenter, judge=judge,
+                                corpus_docs=corpus)}
         write_header = not os.path.exists(out_csv)
         with open(out_csv, "a", newline="") as f:          # re-open PER ROW (swap-safe)
             w = csv.DictWriter(f, fieldnames=NAMED_FIELDNAMES)
