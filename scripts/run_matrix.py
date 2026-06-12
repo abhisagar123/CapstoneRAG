@@ -115,7 +115,19 @@ def main():
             cache[cfg.domain] = load_domain(cfg.domain, split="test", n=args.n, seed=42)
         return cache[cfg.domain]
 
-    run_named_matrix(grid, examples_for, args.out, segmenter=seg, judge=judge)
+    # POOLED corpus: a config with index.corpus_mode == "pooled" retrieves from the WHOLE
+    # domain corpus (the full test split's documents), not just each question's own docs.
+    # Loaded once per domain and cached. Per_example configs ignore this (corpus_for→None path).
+    corpus_cache = {}
+    def corpus_for(cfg):
+        if cfg.index.params.get("corpus_mode") != "pooled":
+            return None
+        if cfg.domain not in corpus_cache:
+            full = load_domain(cfg.domain, split="test", n=None)      # FULL split = full corpus
+            corpus_cache[cfg.domain] = [d for ex in full for d in ex["documents"]]
+        return corpus_cache[cfg.domain]
+
+    run_named_matrix(grid, examples_for, args.out, segmenter=seg, judge=judge, corpus_for=corpus_for)
     print("\n--- matrix so far ---")
     print_verdict(args.out)
 
