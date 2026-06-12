@@ -1,0 +1,24 @@
+# Experiment 5: swap the embedder MiniLM -> BGE (paper "Best Practices" §3.2.3, Table 2:
+# our all-MiniLM family is the weakest embedder tested; bge-base ~3x higher MRR@10).
+# Pair with grounded_norerank.yaml -> isolates the EMBEDDER's effect (Relevance/retrieval lever).
+# ONLY `embedder` differs from grounded_norerank.yaml (minilm -> bge-base); all else identical,
+# so the gap vs that row at the SAME seed/N is the embedder's doing.
+#
+# Doubles as a control for Experiment 3's thesis ("retrieval isn't our bottleneck"): a real,
+# paper-validated retrieval upgrade. If TRACe barely moves, that CONFIRMS the generator is the
+# gap (justifies the bigger-generator move with evidence). If relevance/util rise, cheap win.
+domain: Legal
+
+chunker:   { type: fixed, size: 512, overlap: 50 }
+embedder:  { type: sentence_transformer, model: BAAI/bge-base-en-v1.5 }   # was: minilm (all-MiniLM-L6-v2)
+index:     { type: faiss, corpus_mode: per_example }
+
+retriever: { type: dense, k: 20 }
+reranker:  { type: none, top_n: 5 }
+repacker:  { type: reverse }
+prompt:    { type: grounded }
+generator: { type: ollama, model: llama3.1:8b, max_new_tokens: 256 }   # overridden by --gen-model at run time
+
+splitter:  { type: regex }
+
+seed: 42

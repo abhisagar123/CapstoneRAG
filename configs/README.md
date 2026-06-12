@@ -1,9 +1,9 @@
 # `configs/` — experiment definitions
 
 **An experiment = a config.** Each `.yaml` here is one full RAG pipeline setup. The
-runner (`src/runner.py::run_matrix`) loops these configs over the 5 RAGBench domains
-and writes one results-matrix row per `(config, domain)` — that matrix is the headline
-Task-1 deliverable.
+runner (`src/runner.py`) loops these configs over the chosen RAGBench domains and writes
+one results-matrix row per `(config, domain)` — that matrix is the headline Task-1
+deliverable.
 
 ## The starter grid (4 configs)
 
@@ -23,6 +23,18 @@ A clean 2×2 that varies **one lever at a time**, holding everything else fixed:
 
 Because only one component changes between any adjacent pair, a score difference is
 attributable to that single component — the "change one thing at a time" rule.
+
+## Added experiments (each = `grounded_norerank` + one changed component)
+
+Both are clean one-variable swaps off `grounded_norerank.yaml`, so they compare
+head-to-head against it at the same seed/N (see `docs/EXPERIMENTS.md` Exp 4 & 5):
+
+| config | changed component | lever tested |
+|---|---|---|
+| `grounded_complete_norerank.yaml` | prompt → `grounded_complete` | **Completeness** (a "be thorough" steer on top of grounding) |
+| `grounded_bge_norerank.yaml`      | embedder → `bge-base-en-v1.5` | **Relevance/retrieval** (stronger embedder than MiniLM) |
+
+(So `configs/` holds **6** configs total: the 2×2 grid + these 2.)
 
 ## Schema (every config has these keys)
 
@@ -60,11 +72,23 @@ seed: 42
 ## Adding a config
 
 1. Copy an existing `.yaml`, change the one component you want to ablate.
-2. Name it after the lever(s) it varies (e.g. `bge_rerank.yaml` if you swap the embedder).
-3. Add it to the runner notebook's config list. The matrix grows automatically.
+2. Name it after the lever(s) it varies (e.g. `grounded_bge_norerank.yaml` for the embedder swap).
+3. That's it — **no list to edit.** The runner **globs `configs/*.yaml`**, so a new file is
+   picked up automatically. Already-done `(config_name, domain)` rows in the output CSV are
+   skipped, so re-running only executes the new file's cells. (Keep one-variable changes so
+   any score difference is attributable to that single component.)
 
 ## How they're run
 
-See `notebooks/04_run_matrix.ipynb`: it loads these files, builds the chosen judge
-(from notebook 03's validation), and calls `run_matrix(...)` → `results/ragbench_matrix.csv`.
-The run is **resumable** — already-done `(config, domain)` pairs are skipped on re-run.
+Either the terminal runner or the notebook — both call the **same** shared helpers
+(`src/runner.py::build_grid` + `run_named_matrix`), so they can't drift:
+
+```bash
+.venv-eda/bin/python scripts/run_matrix.py --n 50 --domains GenKnowledge CustomerSupport \
+  --out results/ragbench_matrix_n50.csv
+```
+
+or `notebooks/04_run_matrix.ipynb` (Colab-portable). Both load every `configs/*.yaml`, build
+the chosen judge (`llama3.1:8b`), and write one row per `(config, domain)`. The run is
+**resumable + file-swap-safe** — already-done pairs are skipped on re-run. Then compare to the
+reference scores: `.venv-eda/bin/python scripts/compare_reference.py --matrix <that csv> --plot`.

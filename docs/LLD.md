@@ -47,12 +47,14 @@ src/
 │   ├── base.py           #   PromptBuilder interface + format_chunks() helper
 │   ├── grounded_prompt_builder.py  # GroundedPromptBuilder [type "grounded"] — baseline
 │   ├── minimal_prompt_builder.py   # MinimalPromptBuilder  [type "minimal"]  — contrast arm
+│   ├── grounded_complete_prompt_builder.py  # [type "grounded_complete"] — grounding + completeness steer
 │   └── __init__.py       #   re-exports + registers (pure Python, light)
 ├── generation/           # ✅ Generator strategies (package)
 │   ├── base.py           #   Generator interface
 │   ├── echo_generator.py #   EchoGenerator [type "echo"] — light, no model (tests/wiring)
-│   ├── hf_generator.py   #   HuggingFaceGenerator [type "hf"] — real LLM, heavy, COLAB
-│   └── __init__.py       #   registers echo on import; load_generators() for hf
+│   ├── ollama_generator.py #  OllamaGenerator [type "ollama"] — local Ollama HTTP (default)
+│   ├── hf_generator.py   #   HuggingFaceGenerator [type "hf"] — in-process transformers, COLAB
+│   └── __init__.py       #   registers echo on import; load_generators() for ollama/hf
 ├── segmentation/         # ✅ pipeline→evaluator bridge (package)
 │   ├── base.py           #   SentenceSplitter interface + OutputSegmenter (RAGBench keyer)
 │   ├── regex_splitter.py #   RegexSplitter [type "regex"] — baseline, no deps
@@ -68,12 +70,14 @@ src/
 ├── judge/                # ✅ TRACe judge — produces R/U labels (the evaluator's hard half)
 │   ├── base.py           #   Judge interface + EXACT Appendix-7.4 prompt + JSON parse + scores_from_label adapter
 │   ├── fake_judge.py     #   FakeJudge [type "fake"] — deterministic, no model (tests/wiring)
-│   ├── hf_judge.py       #   HuggingFaceJudge [type "hf"] — real OSS model, heavy, COLAB
-│   └── __init__.py       #   registers fake on import; load_judges() for hf
+│   ├── ollama_judge.py   #   OllamaJudge [type "ollama"] — local Ollama HTTP (default; llama3.1:8b)
+│   ├── hf_judge.py       #   HuggingFaceJudge [type "hf"] — in-process transformers, COLAB
+│   └── __init__.py       #   registers fake on import; load_judges() for ollama/hf
 └── evaluator/
     ├── trace.py          # ✅ 4 TRACe metrics from labels (BUILT)
     ├── validate.py       # ✅ validate the MATH half vs reference scores (BUILT)
     ├── judge_validate.py # ✅ validate the JUDGE half vs reference scores (§9.4)
+    ├── compare.py        # ✅ our matrix scores vs reference scores (gaps + bar charts)
     └── rgb.py            # RGB 4-ability metrics (Phase 3)
 ```
 
@@ -346,7 +350,8 @@ Example experiment (illustrative — shows the *shape*; some types below are asp
 that actually validate against the current registry, see the real files in `configs/`** (e.g.
 `grounded_rerank.yaml`) and `configs/README.md`. Registered types today: chunker `fixed`/`none`;
 embedder `minilm`/`sentence_transformer`; index `faiss`; retriever `dense`; reranker `cross_encoder`/`none`;
-repacker `forward`/`reverse`/`sides`; prompt `grounded`/`minimal`; generator `ollama`/`hf`/`echo`; splitter `regex`/`nltk`.
+repacker `forward`/`reverse`/`sides`; prompt `grounded`/`minimal`/`grounded_complete`; generator
+`ollama`/`hf`/`echo`; splitter `regex`/`nltk`; judge `ollama`/`hf`/`fake`.
 
 ```yaml
 domain: Legal
