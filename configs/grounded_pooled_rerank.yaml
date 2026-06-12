@@ -1,0 +1,23 @@
+# Pooled Exp 3: reranker ON, top_n 5 (the data-motivated fix from Pooled Exp 2).
+# Pair with grounded_pooled_norerank.yaml -> isolates the RERANKER in pooled mode.
+# Exp 2 (top_n 5->3) showed "show fewer chunks" raises relevance but STARVES coverage
+# (adherence dropped -0.13). The right fix keeps 5 chunks but makes them higher-precision:
+# rerank the dense top-20 and keep the best 5. Hypothesis: capture Exp 2's relevance gain
+# WITHOUT the adherence loss. Also tests if the per-example Exp 6B prompt x reranker synergy
+# transfers to pooled.
+# ONLY `reranker` differs from grounded_pooled_norerank.yaml (none -> cross_encoder); all else identical.
+domain: Legal
+
+chunker:   { type: fixed, size: 512, overlap: 50 }
+embedder:  { type: minilm }
+index:     { type: faiss, corpus_mode: pooled }
+
+retriever: { type: dense, k: 20 }
+reranker:  { type: cross_encoder, top_n: 5 }          # the one variable vs grounded_pooled_norerank.yaml (was none)
+repacker:  { type: reverse }
+prompt:    { type: grounded }
+generator: { type: ollama, model: llama3.1:8b, max_new_tokens: 256 }   # overridden by --gen-model at run time
+
+splitter:  { type: regex }
+
+seed: 42
