@@ -33,12 +33,14 @@ data/
 .cache/
 
 # Notebook-generated SCRATCH artifacts that aren't deliverables (EDA dumps).
-# NOTE: results/ragbench_matrix.csv IS a deliverable (the strategy×domain results
-# matrix) — the broad `ragbench_*.csv` rule used to ignore it by accident, so it's
-# un-ignored below. Keep new scratch dumps out of results/ (e.g. name them ragbench_scratch_*).
+# NOTE: the strategy×domain results matrices ARE deliverables — the broad `ragbench_*.csv`
+# rule below would ignore them, so they're un-ignored. Keep scratch dumps named
+# ragbench_scratch_* (those stay ignored).
 ragbench_schema.json
 ragbench_*.csv
-!results/ragbench_matrix.csv
-# Any N-scaled matrix variant (ragbench_matrix_n50.csv, …) is also a deliverable — the
-# broad rule above would ignore it. Keep scratch dumps named ragbench_scratch_* instead.
-!results/ragbench_matrix_n*.csv
+# Un-ignore the matrix CSVs wherever they live under results/ — including the
+# results/{per_example,pooled,validation}/ subdirs (added 13 Jun reorg). The `**` matches
+# any depth, so a fresh run writing results/per_example/ragbench_matrix_n50.csv or
+# results/pooled/ragbench_matrix_*.csv is tracked, not silently ignored.
+!results/**/ragbench_matrix*.csv
+!results/ragbench_matrix*.csv

@@ -49,7 +49,7 @@ matrix on 2 domains; the pipeline's scores compared to RAGBench's reference scor
 
 **Validated so far:** our TRACe metric implementation reproduces RAGBench's shipped reference
 scores **exactly** (RMSE = 0; adherence 100%) across all 12 sub-datasets / 5 domains
-(3,165 examples sampled). See `results/evaluator_validation.csv`.
+(3,165 examples sampled). See `results/validation/evaluator_validation.csv`.
 
 ## Repository layout
 
@@ -83,15 +83,21 @@ notebooks/
   02_evaluator_validation.ipynb # proves the math-half evaluator reproduces reference scores
   03_judge_validation.ipynb     # Colab: pick the judge by agreement with reference scores
   04_run_matrix.ipynb           # Colab: run configs × domains → strategy × domain matrix
-results/
-  evaluator_validation.csv      # math-half validation report card (RMSE=0 vs reference)
-  judge_validation__*.csv       # judge-half agreement with reference (per candidate model)
-  ragbench_matrix*.csv          # the strategy × domain results matrix (N=10 and N=50)
-  reference_comparison*.csv     # our scores vs reference, per metric/domain (+ figures_n50/ charts)
+results/                        # grouped by purpose (validation / per-example / pooled tracks)
+  validation/                   # evaluator + judge validation report cards (vs reference scores)
+    evaluator_validation.csv    #   math-half: reproduces reference scores (RMSE=0)
+    judge_validation__*.csv     #   judge-half: each candidate judge's agreement with reference
+  per_example/                  # per-example track (each Q answered against its own docs)
+    ragbench_matrix*.csv        #   the strategy × domain results matrix (N=10, N=50, …)
+    reference_comparison*.csv   #   our scores vs reference, per metric/domain
+    figures*/                   #   ours-vs-reference bar charts
+  pooled/                       # pooled track (Q retrieves from the whole domain corpus — real RAG)
+    ragbench_matrix_n50_pooled.csv
 docs/
   PROJECT_PLAN.md  HLD.md  LLD.md   # plan + high-/low-level design
   PIPELINE_WALKTHROUGH.md           # one question traced through every stage, end to end
-  EXPERIMENTS.md                    # experiment log + per-metric TRACe findings & reasoning
+  EXPERIMENTS.md                    # per-example experiment log + TRACe findings & reasoning
+  POOLED_EXPERIMENTS.md             # pooled-corpus experiment log (separate track)
 papers/                         # the 3 core + 1 supplementary reference papers (PDFs)
 ```
 

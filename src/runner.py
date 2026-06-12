@@ -240,6 +240,11 @@ def run_named_matrix(grid, examples_for, out_csv: str, *, segmenter=None, judge=
     index once (e.g. the full domain's documents). None (default) → per-example mode uses
     each question's own docs. Ignored by per_example configs.
     """
+    # Ensure the output dir exists (out_csv now lives under results/{per_example,pooled}/ —
+    # a fresh clone won't have the subdir until first write).
+    out_dir = os.path.dirname(out_csv)
+    if out_dir:
+        os.makedirs(out_dir, exist_ok=True)
     for name, cfg in grid:
         if (name, cfg.domain) in _named_done(out_csv):
             print(f"skip (done): {name} / {cfg.domain}")

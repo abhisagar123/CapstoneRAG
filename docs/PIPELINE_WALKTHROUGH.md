@@ -202,7 +202,7 @@ over N examples.
 
 `run_experiment(cfg, examples, segmenter, judge)` (in `src/runner.py`) runs Stages 1–11 for **each**
 of the N examples and **averages** the four scores → one matrix row. `run_named_matrix` loops that
-over every (config, domain) → the full strategy × domain matrix (`results/ragbench_matrix.csv`).
+over every (config, domain) → the full strategy × domain matrix (`results/per_example/ragbench_matrix.csv`).
 
 ```
   ONE matrix cell =

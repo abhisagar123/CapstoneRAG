@@ -18,7 +18,7 @@ asks a different question and carries a different baseline + caveat.
 >   **relevance/utilization/completeness are valid as OUR-OWN scores but NOT comparable to the
 >   RAGBench reference** (adherence still is). We therefore compare **pooled-vs-pooled** here, and
 >   defer any reference comparison. Pooled results live in their own CSV
->   (`results/ragbench_matrix_n50_pooled.csv`), never merged with the per-example matrix.
+>   (`results/pooled/ragbench_matrix_n50_pooled.csv`), never merged with the per-example matrix.
 
 > **Sample-size caveat:** N=50/cell, 2 domains (GenKnowledge, CustomerSupport). Directions that
 > repeat are trustworthy; exact values are noisy. One component changes at a time, so any score
@@ -34,7 +34,7 @@ being handed each question's documents? And where is the headroom?
 **Setup:** the per-example `grounded_norerank` config with ONLY `index.corpus_mode: pooled`. Full
 domain corpus indexed once (GenKnowledge ≈ 7,813 unique docs → ≈ 8,164 chunks; CustomerSupport
 smaller); each of N=50 questions retrieves dense top-k=20 → top-5 → grounded prompt → `llama3.2:3b`,
-judged by `llama3.1:8b`. Source: `results/ragbench_matrix_n50_pooled.csv`.
+judged by `llama3.1:8b`. Source: `results/pooled/ragbench_matrix_n50_pooled.csv`.
 
 ### Baseline numbers
 
@@ -199,5 +199,5 @@ finding about *when* reranking pays off, not a blanket verdict.
 
 ---
 
-*Data source: `results/ragbench_matrix_n50_pooled.csv`. Per-example track + reference comparison
+*Data source: `results/pooled/ragbench_matrix_n50_pooled.csv`. Per-example track + reference comparison
 live in `EXPERIMENTS.md`.*

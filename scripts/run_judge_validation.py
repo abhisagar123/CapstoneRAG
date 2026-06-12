@@ -52,13 +52,13 @@ def print_verdict():
     the same view as nb03's verdict cell, for a terminal run."""
     import pandas as pd
     frames = []
-    for path in sorted(glob.glob("results/judge_validation*.csv")):
+    for path in sorted(glob.glob("results/validation/judge_validation*.csv")):
         d = pd.read_csv(path)
         if "prompt_variant" not in d.columns:
             d["prompt_variant"] = "baseline"
         frames.append(d)
     if not frames:
-        print("no results/judge_validation*.csv yet — run a sweep first.")
+        print("no results/validation/judge_validation*.csv yet — run a sweep first.")
         return
     df = pd.concat(frames, ignore_index=True).drop_duplicates(
         subset=["model", "prompt_variant", "config"], keep="last")

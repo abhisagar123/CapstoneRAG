@@ -99,7 +99,7 @@ Either the terminal runner or the notebook — both call the **same** shared hel
 
 ```bash
 .venv-eda/bin/python scripts/run_matrix.py --n 50 --domains GenKnowledge CustomerSupport \
-  --out results/ragbench_matrix_n50.csv
+  --out results/per_example/ragbench_matrix_n50.csv
 ```
 
 or `notebooks/04_run_matrix.ipynb` (Colab-portable). Both load every `configs/*.yaml`, build
