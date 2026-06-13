@@ -1,0 +1,21 @@
+# Pooled Exp 7a: chunk size 512 -> 256 words. ONE change off grounded_pooled_norerank.yaml.
+# The pooled diagnostic (Exp 1) + the hybrid result (Exp 6) both pointed at chunk SHAPE: relevance
+# = relevant-sentences / total-retrieved-sentences, and big 512-word chunks dilute the numerator with
+# off-topic sentences. Smaller chunks should raise the relevant-FRACTION. Chunking has NEVER been
+# varied (all prior runs used fixed/512) — this is the first chunk-size ablation.
+# NOTE: chunk size is a PARAM (same config_id as the 512 baseline) -> run into its OWN --out file.
+domain: Legal
+
+chunker:   { type: fixed, size: 256, overlap: 25 }    # was 512/50 — halved (overlap kept ~10%)
+embedder:  { type: minilm }
+index:     { type: faiss, corpus_mode: pooled }
+
+retriever: { type: dense, k: 20 }
+reranker:  { type: none, top_n: 5 }
+repacker:  { type: reverse }
+prompt:    { type: grounded }
+generator: { type: ollama, model: llama3.1:8b, max_new_tokens: 256 }   # overridden by --gen-model
+
+splitter:  { type: regex }
+
+seed: 42

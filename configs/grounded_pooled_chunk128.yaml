@@ -1,0 +1,20 @@
+# Pooled Exp 7b: chunk size 512 -> 128 words. ONE change off grounded_pooled_norerank.yaml.
+# The aggressive end of the chunk-size sweep (with chunk256). Smaller = tighter relevant-fraction
+# but risks splitting a relevant span across chunks (recall/coherence cost). Tests where the
+# precision/granularity sweet spot is for pooled retrieval on the 3B.
+# NOTE: chunk size is a PARAM (same config_id as the 512 baseline) -> run into its OWN --out file.
+domain: Legal
+
+chunker:   { type: fixed, size: 128, overlap: 12 }    # was 512/50 — quartered (overlap kept ~10%)
+embedder:  { type: minilm }
+index:     { type: faiss, corpus_mode: pooled }
+
+retriever: { type: dense, k: 20 }
+reranker:  { type: none, top_n: 5 }
+repacker:  { type: reverse }
+prompt:    { type: grounded }
+generator: { type: ollama, model: llama3.1:8b, max_new_tokens: 256 }   # overridden by --gen-model
+
+splitter:  { type: regex }
+
+seed: 42
