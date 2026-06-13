@@ -1,0 +1,17 @@
+# Pooled embedder swap: minilm -> bge-base. ONLY `embedder` differs from
+# grounded_pooled_norerank.yaml (one-variable). Re-tests Exp 5 in pooled mode (big haystack).
+domain: Legal
+
+chunker:   { type: fixed, size: 512, overlap: 50 }
+embedder:  { type: sentence_transformer, model: BAAI/bge-base-en-v1.5 }   # was: minilm
+index:     { type: faiss, corpus_mode: pooled }
+
+retriever: { type: dense, k: 20 }
+reranker:  { type: none, top_n: 5 }
+repacker:  { type: reverse }
+prompt:    { type: grounded }
+generator: { type: ollama, model: llama3.1:8b, max_new_tokens: 256 }   # overridden by --gen-model
+
+splitter:  { type: regex }
+
+seed: 42

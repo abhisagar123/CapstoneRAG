@@ -76,7 +76,7 @@ src/
     judge_validate.py # validates the judge half: its scores vs the reference (RMSE / accuracy)
     compare.py       # compares OUR pipeline's matrix scores to the reference scores (gaps + charts)
 configs/             # experiment definitions (one YAML = one pipeline setup) + README
-scripts/             # terminal twins of the notebooks: run_matrix / run_judge_validation / compare_reference
+scripts/             # terminal tools: run_matrix / run_judge_validation / compare_reference / plot_pooled
 tests/               # lightweight assert scripts (python tests/check_*.py)
 notebooks/
   01_eda.ipynb                  # dataset schema confirmation + chunking-lever analysis
@@ -92,7 +92,8 @@ results/                        # grouped by purpose (validation / per-example /
     reference_comparison*.csv   #   our scores vs reference, per metric/domain
     figures*/                   #   ours-vs-reference bar charts
   pooled/                       # pooled track (Q retrieves from the whole domain corpus — real RAG)
-    ragbench_matrix_n50_pooled.csv
+    ragbench_matrix_n50_pooled*.csv   # baseline + per-lever variants (one --out file each)
+    figures/                          # configs-vs-each-other charts (scripts/plot_pooled.py)
 docs/
   PROJECT_PLAN.md  HLD.md  LLD.md   # plan + high-/low-level design
   PIPELINE_WALKTHROUGH.md           # one question traced through every stage, end to end

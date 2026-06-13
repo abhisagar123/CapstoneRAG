@@ -17,6 +17,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from src.evaluator.compare import (
     build_comparison, comparison_fieldnames, write_comparison_csv,
     reference_means, METRICS, _to_float, _mean_reference_fields,
+    load_matrix_rows, plot_matrix,
 )
 
 WANT_DATASET = os.environ.get("DATASET") == "1"
@@ -158,10 +159,62 @@ def test_plot_comparison_writes_one_png_per_metric():
 
 def test_plot_import_does_not_force_matplotlib():
     # Heavy-dep discipline: importing compare.py must NOT pull matplotlib at module level.
+    # NOTE: popping matplotlib mid-suite leaves it half-initialized for later tests that
+    # plot (matplotlib.use() then crashes on the stale module). So snapshot every matplotlib
+    # submodule, run the check, then RESTORE — this test must not corrupt global state.
     import sys, importlib
-    sys.modules.pop("matplotlib", None)
-    importlib.reload(importlib.import_module("src.evaluator.compare"))
-    assert "matplotlib" not in sys.modules
+    saved = {k: v for k, v in sys.modules.items() if k == "matplotlib" or k.startswith("matplotlib.")}
+    for k in list(saved):
+        del sys.modules[k]
+    try:
+        importlib.reload(importlib.import_module("src.evaluator.compare"))
+        assert "matplotlib" not in sys.modules
+    finally:
+        sys.modules.update(saved)                  # restore so later plot tests work
+
+
+def test_load_matrix_rows_merges_and_dedupes():
+    # Pooled runs split across files; load_matrix_rows merges them, de-duping on
+    # (config_name, domain) keeping the LAST occurrence (a re-run supersedes the old row).
+    p1 = _write_matrix([
+        {"config_name": "a.yaml", "domain": "GenKnowledge", "n": "50",
+         "relevance": "0.30", "utilization": "0.10", "completeness": "0.40", "adherence": "0.50"}])
+    p2 = os.path.join(tempfile.gettempdir(), "_check_compare_matrix2.csv")
+    cols = ["config_name", "domain", "n", "relevance", "utilization", "completeness", "adherence"]
+    with open(p2, "w", newline="") as f:
+        w = csv.DictWriter(f, fieldnames=cols); w.writeheader()
+        w.writerow({"config_name": "b.yaml", "domain": "GenKnowledge", "n": "50",
+                    "relevance": "0.40", "utilization": "0.20", "completeness": "0.50", "adherence": "0.60"})
+        # a re-run of a.yaml with a DIFFERENT score -> should supersede p1's a.yaml row
+        w.writerow({"config_name": "a.yaml", "domain": "GenKnowledge", "n": "50",
+                    "relevance": "0.99", "utilization": "0.10", "completeness": "0.40", "adherence": "0.50"})
+    rows = load_matrix_rows(p1, p2)
+    assert len(rows) == 2                                       # a + b, a de-duped
+    a = next(r for r in rows if r["config_name"] == "a.yaml")
+    assert a["relevance"] == "0.99"                            # last occurrence wins
+    os.remove(p1); os.remove(p2)
+
+
+def test_plot_matrix_one_png_per_domain():
+    try:
+        import matplotlib  # noqa: F401
+    except ImportError:
+        print("  (skip plot_matrix test — matplotlib not installed)")
+        return
+    rows = [
+        {"config_name": "a.yaml", "domain": "GenKnowledge", "relevance": "0.3",
+         "utilization": "0.1", "completeness": "0.4", "adherence": "0.5"},
+        {"config_name": "b.yaml", "domain": "GenKnowledge", "relevance": "0.4",
+         "utilization": "0.2", "completeness": "0.5", "adherence": "0.6"},
+        {"config_name": "a.yaml", "domain": "CustomerSupport", "relevance": "0.2",
+         "utilization": "0.1", "completeness": "0.1", "adherence": "0.5"},
+    ]
+    out_dir = os.path.join(tempfile.gettempdir(), "_check_matrix_figs")
+    pngs = plot_matrix(rows, out_dir, title_prefix="pooled — ")
+    assert len(pngs) == 2                                       # one per domain
+    for p in pngs:
+        assert os.path.exists(p) and os.path.getsize(p) > 0
+        os.remove(p)
 
 
 def test_write_comparison_csv_roundtrips():

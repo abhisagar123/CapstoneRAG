@@ -216,3 +216,72 @@ def plot_comparison(rows: list[dict], out_dir: str, *, baseline_label: str = "")
         plt.close(fig)
         written.append(path)
     return written
+
+
+# ── matrix-only plots (no reference) — for comparing configs AMONG each other ───────
+# Used by the pooled track, where there is no reference comparison: each domain gets one
+# chart with the configs on the x-axis and all 4 TRACe metrics grouped per config, so you
+# can read each config's full profile and compare configs side by side.
+
+def plot_matrix(rows: list[dict], out_dir: str, *, title_prefix: str = "") -> list[str]:
+    """Grouped bar charts of a results matrix — configs compared AMONG each other.
+
+    One PNG per domain; x-axis = config (strategy), and each config shows its four TRACe
+    metrics (relevance/utilization/completeness/adherence) as grouped bars. No reference —
+    this is for tracks (e.g. pooled) where configs are compared to each other, not to the
+    RAGBench reference. Returns the written PNG paths.
+
+    `rows` are raw matrix-CSV dicts (string scores). matplotlib is imported lazily here,
+    same heavy-dep discipline as plot_comparison.
+    """
+    import os
+    import matplotlib
+    matplotlib.use("Agg")                      # headless
+    import matplotlib.pyplot as plt
+
+    os.makedirs(out_dir, exist_ok=True)
+    domains = sorted({r["domain"] for r in rows})
+    colors = {"relevance": "#4C72B0", "utilization": "#DD8452",
+              "completeness": "#55A868", "adherence": "#C44E52"}
+    written = []
+
+    for domain in domains:
+        drows = [r for r in rows if r["domain"] == domain]
+        labels = [_strategy_label(r) for r in drows]
+        x = range(len(labels))
+        n_metrics = len(METRICS)
+        width = 0.8 / n_metrics                 # bars share each config's slot
+        fig, ax = plt.subplots(figsize=(max(7, 1.6 * len(labels)), 4.6))
+        for j, metric in enumerate(METRICS):
+            vals = [(_to_float(r.get(metric)) or 0.0) for r in drows]
+            offsets = [i + (j - (n_metrics - 1) / 2) * width for i in x]
+            ax.bar(offsets, vals, width, label=metric, color=colors[metric])
+        ax.set_title(f"{title_prefix}{domain}", fontweight="bold")
+        ax.set_xticks(list(x))
+        ax.set_xticklabels(labels, rotation=30, ha="right", fontsize=8)
+        ax.set_ylim(0, 1)
+        ax.set_ylabel("TRACe score")
+        ax.legend(fontsize=8, ncol=4, loc="upper right")
+        fig.tight_layout()
+        safe_dom = domain.lower().replace(" ", "_")
+        path = os.path.join(out_dir, f"matrix_{safe_dom}.png")
+        fig.savefig(path, dpi=130)
+        plt.close(fig)
+        written.append(path)
+    return written
+
+
+def load_matrix_rows(*csv_paths: str) -> list[dict]:
+    """Read + concatenate one or more matrix CSVs into a list of row dicts.
+
+    Pooled experiments are split across files (separate --out per parallel run), so the
+    plot/analysis layer needs to merge them. De-dupes on (config_name, domain), keeping the
+    last occurrence, so re-running a config supersedes its older row."""
+    import csv
+
+    merged: dict = {}
+    for path in csv_paths:
+        with open(path, newline="") as f:
+            for r in csv.DictReader(f):
+                merged[(r.get("config_name") or r.get("config_id"), r["domain"])] = r
+    return list(merged.values())
