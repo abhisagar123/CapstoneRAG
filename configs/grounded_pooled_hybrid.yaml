@@ -1,0 +1,23 @@
+# Pooled Exp 6: hybrid retrieval (dense + BM25 via weighted RRF) in pooled mode.
+# ONE change off grounded_pooled_norerank.yaml: retriever dense -> hybrid. Isolates the
+# RETRIEVER. Motivation: CustomerSupport resisted every lever (Exp 2-5); its docs are long
+# and topically similar, so dense keeps pulling look-alikes. BM25's lexical matching should
+# rescue exact-term queries (product names, codes) that dense embeddings blur — the paper's
+# top retrieval pick, and the most plausible structural fix for CustomerSupport.
+#
+# w_dense/w_sparse default to 1/1 = standard RRF (the paper's plain version). Tune later if needed.
+domain: Legal
+
+chunker:   { type: fixed, size: 512, overlap: 50 }
+embedder:  { type: minilm }
+index:     { type: faiss, corpus_mode: pooled }
+
+retriever: { type: hybrid, k: 20 }                    # was: dense. dense+BM25 fused by RRF (w_dense=w_sparse=1)
+reranker:  { type: none, top_n: 5 }
+repacker:  { type: reverse }
+prompt:    { type: grounded }
+generator: { type: ollama, model: llama3.1:8b, max_new_tokens: 256 }   # overridden by --gen-model
+
+splitter:  { type: regex }
+
+seed: 42
