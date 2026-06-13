@@ -1,0 +1,3 @@
+config_name,config_id,domain,chunker,embedder,index,retriever,reranker,repacker,prompt,generator,n,n_scored,relevance,utilization,completeness,adherence,scoring
+grounded_pooled_bge.yaml,fixed|sentence_transformer|faiss|dense|none|reverse|grounded|ollama,GenKnowledge,fixed,sentence_transformer,faiss,dense,none,reverse,grounded,ollama,50,50,0.29579051589658933,0.10105538817822005,0.37347619047619046,0.54,done
+grounded_pooled_bge.yaml,fixed|sentence_transformer|faiss|dense|none|reverse|grounded|ollama,CustomerSupport,fixed,sentence_transformer,faiss,dense,none,reverse,grounded,ollama,50,50,0.1971611825280389,0.0565563037498713,0.14683261183261184,0.48,done
