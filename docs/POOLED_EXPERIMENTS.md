@@ -309,17 +309,71 @@ CustomerSupport stays stubborn across the whole track: reranker (Exp 3), top3 (E
 now complete+rerank (5A) and complete+top3 (5B, adherence) all failed it. Only the plain
 generation-side `grounded_complete` (4B) helps it. This is a real, repeated domain-difficulty finding.
 
-### Pooled track — candidate next levers
-1. ✅ Exp 4A BGE — null. ✅ Exp 4B grounded_complete — the prompt winner.
-2. ✅ Exp 5A complete+rerank — averaged (synergy didn't transfer). ✅ Exp 5B complete+top3 — GenK win, CustS adherence loss.
-3. **Config-only levers are largely exhausted on 3B for these 2 domains.** Remaining low-odds config: extractive prompt in pooled.
-4. **Next REAL lever = hybrid retrieval (BM25 + RRF)** — the one major retrieval component never built; the
-   "Best Practices" paper's top retrieval pick; the most plausible structural fix for CustomerSupport's
-   stubborn retrieval. This is a *build*, not a config.
-5. **Then** bigger generator on the per-domain winners (only after config/retrieval levers are spent — user's order).
+---
+
+## Pooled Exp 6 — Hybrid retrieval (dense + BM25 via RRF): a decisive NEGATIVE result
+
+**Question:** every config lever failed on CustomerSupport; does *hybrid retrieval* (dense + BM25, the
+"Best Practices" paper's top retrieval pick) finally crack it? We built BM25 + a weighted-RRF hybrid
+(see `EXPERIMENTS`/code) and ran two weightings — one change each off the dense baseline / each other.
+N=50. Sources: `..._hybrid.csv` (equal RRF) + `..._hybrid_dense_heavy.csv` (0.7/0.3).
+
+### Three-way: dense → hybrid (1/1) → hybrid (0.7/0.3 dense-leaning)
+
+**GenKnowledge:**
+
+| metric | dense | hybrid 1/1 | hybrid .7/.3 |
+|---|---|---|---|
+| relevance | **0.304** | 0.228 | 0.280 |
+| utilization | **0.128** | 0.082 | 0.089 |
+| completeness | **0.362** | 0.306 | 0.300 |
+| adherence | **0.540** | 0.531 | 0.449 |
+
+**CustomerSupport:**
+
+| metric | dense | hybrid 1/1 | hybrid .7/.3 |
+|---|---|---|---|
+| relevance | **0.205** | 0.177 | 0.178 |
+| utilization | **0.069** | 0.042 | 0.045 |
+| completeness | **0.121** | 0.090 | 0.112 |
+| adherence | 0.500 | 0.480 | **0.531** |
+
+### Findings + reasoning
+
+**F1 — Hybrid does NOT beat dense, under EITHER weighting.** Plain RRF (1/1) hurt everything
+(relevance −0.076 GenK / −0.028 CustS). Dense-leaning (0.7/0.3) clawed *back toward* baseline
+(GenK relevance 0.228→0.280) — confirming BM25 was diluting — but never *past* it; the best case is
+"≈ dense." The lone positive cell is CustomerSupport adherence 0.531 (vs dense 0.500), but it's
+±a couple of answers at N=50 (and that cell scored 49/50), so it's within noise.
+
+**F2 — The instructive part: BM25 RAISED recall, yet TRACe DROPPED (recall ≠ TRACe-relevance).** A
+diagnostic on CustomerSupport found BM25-alone recalled *more* gold chunks in the top-5 than
+dense-alone (2.83 vs 2.25), and hybrid the most (2.92) — retrieval recall went UP. But our **relevance
+= relevant-sentences / total-retrieved-sentences** is a precision-of-text metric, not recall. BM25
+favors longer, keyword-dense chunks (median retrieved length 390→401 words), which inflates the
+denominator: more gold present, spread over more total text → the relevant *fraction* falls. (The
+length effect is small ~3% so it only partially explains the −0.076; the rest is BM25 surfacing
+lexically-matched-but-not-judged-relevant chunks + N=50 noise — not fully attributable, stated honestly.)
+
+**F3 — Why this is a valuable negative result.** Hybrid delivered exactly what the paper promises
+(higher recall) and still hurt *our* metric. The paper recommends hybrid because it optimizes
+recall/nDCG; TRACe relevance measures something different. This is the cleanest demonstration in the
+project that **a paper-endorsed retrieval lever does not transfer to a precision-of-retrieved-text
+metric** — closes the retrieval-lever line with evidence, not a hunch.
+
+### Pooled track — status + next
+1. ✅ Exp 4A BGE null · ✅ 4B grounded_complete (prompt winner) · ✅ 5A complete+rerank (averaged) ·
+   ✅ 5B complete+top3 (GenK win) · ✅ 6 hybrid (negative — recall up, TRACe down, both weightings).
+2. **Retrieval levers are now exhausted** (embedder swap, reranker, hybrid all fail to beat dense for TRACe).
+   Config levers exhausted too. The per-domain bests stand: GenKnowledge → `complete+top3`; CustomerSupport
+   → plain `complete`. CustomerSupport resisted EVERYTHING except generation-side `grounded_complete`.
+3. **Next = bigger generator** (`llama3.1:8b`/`gemma2:9b`) on the per-domain winners — the remaining lever now
+   that config + retrieval are spent (user's order: small-generator levers first, then scale up). Low-odds
+   leftover: extractive prompt in pooled.
 
 ---
 
 *Data sources: `results/pooled/ragbench_matrix_n50_pooled.csv` (Exp 1–3),
 `..._bge.csv` + `..._complete.csv` (Exp 4), `..._complete_rerank.csv` + `..._complete_top3.csv` (Exp 5),
-`results/pooled/figures/` (charts). Per-example track + reference comparison live in `EXPERIMENTS.md`.*
+`..._hybrid.csv` + `..._hybrid_dense_heavy.csv` (Exp 6), `results/pooled/figures/` (charts).
+Per-example track + reference comparison live in `EXPERIMENTS.md`.*
