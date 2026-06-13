@@ -22,7 +22,7 @@ Assembly notes (why this isn't just "build each stage from config"):
 """
 
 from .registry import build
-from .retrieval import DenseRetriever
+from .retrieval import DenseRetriever, BM25Retriever, HybridRetriever
 
 
 # How many candidates to retrieve / keep, if the config doesn't say.
@@ -58,10 +58,24 @@ class Pipeline:
         self.reranker = build("reranker", c.reranker.type, reranker_ctor_params) if c.reranker else None
         self.repacker = build("repacker", c.repacker.type, c.repacker.params) if c.repacker else None
 
-        # Retriever wraps embedder + index (built objects). DenseRetriever takes
-        # exactly (embedder, index); its only config param, k, is a call-time knob
-        # (handled above), so nothing else from retriever.params is passed here.
-        self.retriever = DenseRetriever(embedder=self.embedder, index=self.index)
+        # Retriever is config-driven. It wraps the built embedder + index (it's NOT a
+        # bare registry build() like other stages, because it needs those objects), so a
+        # small factory maps retriever.type -> the right wrapper. `k` is a call-time knob
+        # (handled above) and is excluded from the ctor params.
+        self._retriever_ctor_params = {k: v for k, v in c.retriever.params.items() if k != "k"}
+        self.retriever = self._build_retriever()
+
+    def _build_retriever(self):
+        """Construct the retriever for this config's `retriever.type`, wrapping the
+        already-built embedder + index. dense/hybrid need the vector index; bm25 is
+        sparse (its corpus is supplied later via index_corpus). Defaults to dense."""
+        rtype = self.config.retriever.type
+        p = self._retriever_ctor_params
+        if rtype == "bm25":
+            return BM25Retriever()
+        if rtype == "hybrid":
+            return HybridRetriever(embedder=self.embedder, index=self.index, **p)
+        return DenseRetriever(embedder=self.embedder, index=self.index)   # "dense" default
 
     # ---------------- OFFLINE: build the index ----------------
 
@@ -73,7 +87,7 @@ class Pipeline:
         """
         index_params = {**self.config.index.params, "dim": self.embedder.dim}
         self.index = build("index", self.config.index.type, index_params)
-        self.retriever = DenseRetriever(embedder=self.embedder, index=self.index)
+        self.retriever = self._build_retriever()
 
     def index_documents(self, documents: list[str], doc_ids: list[str] | None = None) -> int:
         """Chunk the documents, embed the chunks, add them to the index.
@@ -83,6 +97,11 @@ class Pipeline:
             return 0
         vectors = self.embedder.embed([ch.text for ch in chunks])
         self.index.add(chunks, vectors)
+        # Sparse / hybrid retrievers build their OWN term index over the chunk texts;
+        # give them the chunks now (dense provides a no-op / lacks the method).
+        index_corpus = getattr(self.retriever, "index_corpus", None)
+        if callable(index_corpus):
+            index_corpus(chunks)
         return len(chunks)
 
     # ---------------- ONLINE: answer a query ----------------
