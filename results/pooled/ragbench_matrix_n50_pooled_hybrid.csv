@@ -1,0 +1,3 @@
+config_name,config_id,domain,chunker,embedder,index,retriever,reranker,repacker,prompt,generator,n,n_scored,relevance,utilization,completeness,adherence,scoring
+grounded_pooled_hybrid.yaml,fixed|minilm|faiss|hybrid|none|reverse|grounded|ollama,GenKnowledge,fixed,minilm,faiss,hybrid,none,reverse,grounded,ollama,50,49,0.22838552364942244,0.08205475518376766,0.3063774427519926,0.5306122448979592,done
+grounded_pooled_hybrid.yaml,fixed|minilm|faiss|hybrid|none|reverse|grounded|ollama,CustomerSupport,fixed,minilm,faiss,hybrid,none,reverse,grounded,ollama,50,50,0.17667514616881738,0.04154246189175483,0.09,0.48,done

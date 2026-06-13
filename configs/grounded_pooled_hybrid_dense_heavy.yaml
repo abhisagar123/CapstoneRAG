@@ -1,0 +1,20 @@
+# Pooled Exp 6b: hybrid with DENSE-LEANING weights (w_dense=0.7, w_sparse=0.3 = the paper's alpha).
+# ONE change off grounded_pooled_hybrid.yaml: the RRF weights (was 1/1 = equal). Plain RRF (Exp 6)
+# HURT TRACe — BM25 raised recall but pulled longer/keyword-matched chunks that lowered the
+# relevant-FRACTION. Down-weighting BM25 so dense LEADS and BM25 only breaks ties: does TRACe
+# recover toward (or past) the dense baseline? (Honest expectation: likely claws back to ~baseline.)
+domain: Legal
+
+chunker:   { type: fixed, size: 512, overlap: 50 }
+embedder:  { type: minilm }
+index:     { type: faiss, corpus_mode: pooled }
+
+retriever: { type: hybrid, k: 20, w_dense: 0.7, w_sparse: 0.3 }   # was 1.0/1.0 (equal RRF)
+reranker:  { type: none, top_n: 5 }
+repacker:  { type: reverse }
+prompt:    { type: grounded }
+generator: { type: ollama, model: llama3.1:8b, max_new_tokens: 256 }   # overridden by --gen-model
+
+splitter:  { type: regex }
+
+seed: 42
