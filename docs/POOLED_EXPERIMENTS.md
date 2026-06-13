@@ -248,16 +248,78 @@ Pooled configs compared among each other (one chart per domain, 4 TRACe bars per
 `scripts/plot_pooled.py` (merges all `results/pooled/*.csv`). No reference bars — pooled is a
 configs-vs-each-other track.
 
+---
+
+## Pooled Exp 5 — building on the winner: complete + reranker (5A) vs complete + top3 (5B)
+
+**Question:** `grounded_complete` (Exp 4B) is the pooled prompt winner. Two one-change extensions of it,
+run in parallel: **5A** adds the reranker (combine with GenKnowledge's lever, Exp 3); **5B** tightens
+context to top_n=3. Each is one change off `grounded_pooled_complete`; N=50. Sources:
+`results/pooled/ragbench_matrix_n50_pooled_complete_rerank.csv` + `..._complete_top3.csv`.
+
+### 5A — complete + reranker: did NOT compound — it AVERAGED (synergy did not transfer)
+
+complete+rerank lands *between* its two parents on nearly every metric — worse than complete where
+complete was strong, worse than rerank where rerank was strong:
+
+| metric | combo | vs complete-alone | vs rerank-alone |
+|---|---|---|---|
+| GenK completeness | 0.348 | −0.070 | +0.020 |
+| GenK adherence | 0.551 | +0.020 | −0.053 |
+| **CustS completeness** | 0.123 | **−0.126** | +0.021 |
+| CustS adherence | 0.500 | −0.040 | +0.060 |
+
+**Finding: the two levers FIGHT, they don't stack.** `grounded_complete` says "use *more* of the
+context"; the reranker→top5 *narrows and reorders* what's available. Being thorough over a
+reranked-narrowed set gives a smaller pool to cover → completeness drops (it erased complete's
+signature CustomerSupport completeness win, 0.249→0.123). **The per-example Exp 6B prompt×reranker
+synergy did NOT transfer to pooled** — a synergy real in one corpus regime broke in another (a
+report-worthy negative result). complete+rerank is a wash; not the pooled winner.
+
+### 5B — complete + top3: the GenKnowledge STANDOUT (best pooled completeness by far)
+
+| metric | GenKnowledge (vs complete) | CustomerSupport (vs complete) |
+|---|---|---|
+| **completeness** | 0.418 → **0.655** (+0.237) | 0.249 → **0.318** (+0.069) |
+| utilization | 0.187 → 0.313 (+0.126) | 0.115 → 0.142 |
+| relevance | 0.322 → 0.402 (+0.080) | 0.231 → 0.269 |
+| adherence | 0.531 → 0.540 (held) | 0.540 → **0.320 (−0.220)** |
+
+**Finding: tight context + "use it fully" COMPLEMENT on GenKnowledge.** GenKnowledge completeness
+**0.655 is by far the highest of any pooled config** (next best 0.42) with adherence *held flat* —
+fewer chunks (top3) makes "be thorough" achievable, and grounded_complete cancels top3's usual
+coverage-starvation (the Exp 2 adherence loss). **But it's domain-split:** on CustomerSupport the
+top3 precision/coverage tension bit hard (adherence 0.540 → 0.320), same failure mode as plain top3
+(Exp 2). So 5B is a strong GenKnowledge win, a bad CustomerSupport trade.
+
+⚠️ **Caveat:** GenK completeness 0.655 is a large jump on the noisiest (derived) metric at N=50 —
+direction is trustworthy (top3+complete lifts coverage on both domains), exact value wants a sanity
+re-run before being cited as final. GenK 5A = 49/50 (one parse fail).
+
+### Best pooled config on the small generator (3B) — it's DOMAIN-SPLIT (the finding)
+
+No single config wins both domains; the per-domain bests are:
+
+| domain | best config | headline |
+|---|---|---|
+| **GenKnowledge** | **`complete + top3`** (5B) | completeness 0.655 (dominant), adherence held |
+| **CustomerSupport** | **`complete` (top5)** (4B) | only config with decent completeness (0.249) AND adherence (0.540); every top3/rerank variant wrecks its adherence |
+
+CustomerSupport stays stubborn across the whole track: reranker (Exp 3), top3 (Exp 2), BGE (4A), and
+now complete+rerank (5A) and complete+top3 (5B, adherence) all failed it. Only the plain
+generation-side `grounded_complete` (4B) helps it. This is a real, repeated domain-difficulty finding.
+
 ### Pooled track — candidate next levers
-1. ✅ **BGE embedder (Exp 4A): done — null.** Not the lever (confirmed null in both corpus modes).
-2. ✅ **grounded_complete (Exp 4B): done — the winner**, esp. for CustomerSupport.
-3. **`grounded_complete` + reranker in pooled** — combine the two winners (complete = CustomerSupport's
-   lever, rerank@top5 = GenKnowledge's). The natural next single-purpose experiment; also the real test
-   of whether the per-example Exp 6B prompt×reranker synergy transfers to pooled.
-4. **Bigger generator on the pooled winner(s)** — does the generation-side win amplify with capacity?
+1. ✅ Exp 4A BGE — null. ✅ Exp 4B grounded_complete — the prompt winner.
+2. ✅ Exp 5A complete+rerank — averaged (synergy didn't transfer). ✅ Exp 5B complete+top3 — GenK win, CustS adherence loss.
+3. **Config-only levers are largely exhausted on 3B for these 2 domains.** Remaining low-odds config: extractive prompt in pooled.
+4. **Next REAL lever = hybrid retrieval (BM25 + RRF)** — the one major retrieval component never built; the
+   "Best Practices" paper's top retrieval pick; the most plausible structural fix for CustomerSupport's
+   stubborn retrieval. This is a *build*, not a config.
+5. **Then** bigger generator on the per-domain winners (only after config/retrieval levers are spent — user's order).
 
 ---
 
 *Data sources: `results/pooled/ragbench_matrix_n50_pooled.csv` (Exp 1–3),
-`results/pooled/ragbench_matrix_n50_pooled_bge.csv` + `..._complete.csv` (Exp 4),
+`..._bge.csv` + `..._complete.csv` (Exp 4), `..._complete_rerank.csv` + `..._complete_top3.csv` (Exp 5),
 `results/pooled/figures/` (charts). Per-example track + reference comparison live in `EXPERIMENTS.md`.*

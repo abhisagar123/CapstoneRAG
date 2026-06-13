@@ -1,0 +1,20 @@
+# Pooled Exp 5A: combine the two pooled winners — grounded_complete prompt + cross-encoder reranker.
+# ONE change off grounded_pooled_complete.yaml (reranker none -> cross_encoder) AND one change off
+# grounded_pooled_rerank.yaml (prompt grounded -> grounded_complete), so it's interpretable against
+# BOTH existing baselines: complete owns CustomerSupport (Exp 4B), rerank@top5 owns GenKnowledge (Exp 3).
+# Tests whether they COMPOUND, and whether the per-example Exp 6B prompt×reranker synergy transfers to pooled.
+domain: Legal
+
+chunker:   { type: fixed, size: 512, overlap: 50 }
+embedder:  { type: minilm }
+index:     { type: faiss, corpus_mode: pooled }
+
+retriever: { type: dense, k: 20 }
+reranker:  { type: cross_encoder, top_n: 5 }          # vs grounded_pooled_complete (was none)
+repacker:  { type: reverse }
+prompt:    { type: grounded_complete }                # vs grounded_pooled_rerank (was grounded)
+generator: { type: ollama, model: llama3.1:8b, max_new_tokens: 256 }   # overridden by --gen-model
+
+splitter:  { type: regex }
+
+seed: 42

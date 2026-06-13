@@ -1,0 +1,20 @@
+# Pooled Exp 5B: the winning prompt (grounded_complete) with tighter context (top_n 3).
+# ONE change off grounded_pooled_complete.yaml (top_n 5 -> 3). Exp 2 showed plain top_n=3 raised
+# relevance but cost adherence (less coverage); grounded_complete pushes the model to USE the
+# context fully — does pairing it with fewer-but-precise chunks keep the relevance gain without
+# the adherence loss? Independent of 5A (different reranker/top_n), so safe to run in parallel.
+domain: Legal
+
+chunker:   { type: fixed, size: 512, overlap: 50 }
+embedder:  { type: minilm }
+index:     { type: faiss, corpus_mode: pooled }
+
+retriever: { type: dense, k: 20 }
+reranker:  { type: none, top_n: 3 }                   # vs grounded_pooled_complete (was 5)
+repacker:  { type: reverse }
+prompt:    { type: grounded_complete }
+generator: { type: ollama, model: llama3.1:8b, max_new_tokens: 256 }   # overridden by --gen-model
+
+splitter:  { type: regex }
+
+seed: 42
