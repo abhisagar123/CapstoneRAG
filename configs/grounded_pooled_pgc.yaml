@@ -1,0 +1,23 @@
+# Pooled Exp 7c: structure-aware chunking (PGC) instead of fixed word windows.
+# ONE change off grounded_pooled_norerank.yaml: chunker fixed -> pgc. PGC groups adjacent
+# PARAGRAPHS (paper default: 2 paragraphs, overlap 1) so chunk boundaries fall at natural breaks,
+# keeping chunks topically coherent. The "Document Chunking Strategies" paper's best overall chunker
+# and its top pick for Legal. Hypothesis: coherent paragraph chunks raise the relevant-fraction
+# without over-fragmenting (the failure mode of tiny fixed windows).
+# NOTE: distinct config_id (chunker TYPE changes fixed->pgc) — could share the pooled CSV, but we run
+# it into its own --out for parallelism alongside the chunk-size sweep.
+domain: Legal
+
+chunker:   { type: pgc, paragraphs: 2, overlap: 1 }   # was: fixed 512/50
+embedder:  { type: minilm }
+index:     { type: faiss, corpus_mode: pooled }
+
+retriever: { type: dense, k: 20 }
+reranker:  { type: none, top_n: 5 }
+repacker:  { type: reverse }
+prompt:    { type: grounded }
+generator: { type: ollama, model: llama3.1:8b, max_new_tokens: 256 }   # overridden by --gen-model
+
+splitter:  { type: regex }
+
+seed: 42

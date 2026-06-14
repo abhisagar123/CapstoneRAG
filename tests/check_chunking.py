@@ -10,13 +10,51 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import src  # noqa: F401 — triggers component registration via src/__init__.py
 from src.registry import build, available, register, REGISTRY
-from src.chunking import Chunk, Chunker, FixedChunker, NoOpChunker
+from src.chunking import Chunk, Chunker, FixedChunker, NoOpChunker, ParagraphGroupChunker
 
 
 def test_components_registered_on_import():
     # Importing src must populate the registry (the decorator-runs-on-import gotcha).
     assert "fixed" in available("chunker")
     assert "none" in available("chunker")
+    assert "pgc" in available("chunker")
+
+
+def test_pgc_groups_adjacent_paragraphs():
+    # 4 blank-line-separated paragraphs; paragraphs=2, overlap=1 -> windows
+    # [p0,p1], [p1,p2], [p2,p3] (sliding by 1).
+    doc = "Para zero.\n\nPara one.\n\nPara two.\n\nPara three."
+    chunks = ParagraphGroupChunker(paragraphs=2, overlap=1).chunk([doc])
+    assert all(isinstance(c, Chunk) for c in chunks)
+    assert chunks[0].text == "Para zero.\n\nPara one."     # grouped 2 paras, blank-line joined
+    assert "Para one." in chunks[1].text                  # overlap=1 carries para one forward
+    assert [c.chunk_id for c in chunks][:3] == ["0-0", "0-1", "0-2"]
+
+
+def test_pgc_single_block_falls_back_to_one_chunk():
+    # No blank lines AND no newlines -> one paragraph -> one chunk (the whole text).
+    chunks = ParagraphGroupChunker().chunk(["one solid block of text with no breaks"])
+    assert len(chunks) == 1
+    assert chunks[0].text == "one solid block of text with no breaks"
+
+
+def test_pgc_falls_back_to_single_newlines():
+    # Many corpora separate paragraphs with single newlines (no blank line). PGC should
+    # still find structure rather than treating the whole doc as one paragraph.
+    doc = "Line A\nLine B\nLine C\nLine D"
+    chunks = ParagraphGroupChunker(paragraphs=2, overlap=0).chunk([doc])
+    assert len(chunks) == 2                                # [A,B],[C,D]
+    assert "Line A" in chunks[0].text and "Line B" in chunks[0].text
+
+
+def test_pgc_empty_and_invalid_params():
+    assert ParagraphGroupChunker().chunk(["", "   "]) == []
+    for bad in [dict(paragraphs=0), dict(paragraphs=2, overlap=2), dict(paragraphs=2, overlap=-1)]:
+        try:
+            ParagraphGroupChunker(**bad)
+            assert False, f"expected ValueError for {bad}"
+        except ValueError:
+            pass
 
 
 def test_fixed_chunker_splits_long_doc():

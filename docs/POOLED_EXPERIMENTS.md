@@ -361,19 +361,80 @@ recall/nDCG; TRACe relevance measures something different. This is the cleanest 
 project that **a paper-endorsed retrieval lever does not transfer to a precision-of-retrieved-text
 metric** — closes the retrieval-lever line with evidence, not a hunch.
 
+---
+
+## Pooled Exp 7 — Chunking sweep (size + PGC): the dilution hypothesis, confirmed asymmetrically
+
+**Question:** chunking was the ONE component never varied (all prior runs used fixed 512/50). The Exp 1
+diagnostic argued big chunks dilute relevance (= relevant-sents / total-retrieved-sents). Does
+smaller / structure-aware chunking raise it? One-change off the dense pooled baseline: fixed-256,
+fixed-128, and **PGC** (paragraph-group, the "Document Chunking Strategies" paper's best chunker).
+N=50. Sources: `..._chunk256.csv`, `..._chunk128.csv`, `..._pgc.csv`.
+
+### The sweep (relevance / completeness; full 4-metric in CSVs)
+
+**GenKnowledge** — chunking barely moves anything:
+
+| chunker | relevance | completeness | adherence |
+|---|---|---|---|
+| fixed-512 (base) | 0.304 | 0.362 | 0.540 |
+| fixed-256 | 0.289 | 0.360 | 0.580 |
+| fixed-128 | 0.322 | 0.282 | 0.460 |
+| pgc | 0.314 | 0.375 | 0.620 |
+
+**CustomerSupport** — chunking is a REAL lever, clean monotonic trend:
+
+| chunker | relevance | completeness | adherence |
+|---|---|---|---|
+| fixed-512 (base) | 0.205 | 0.121 | 0.500 |
+| fixed-256 | 0.272 | 0.121 | 0.480 |
+| fixed-128 | 0.315 | 0.179 | 0.440 |
+| **pgc** | **0.372** | **0.256** | 0.460 |
+
+### Findings + reasoning
+
+**F1 — GenKnowledge doesn't care about chunking.** Relevance wobbles 0.29–0.32 with no trend;
+fixed-128 actively *hurt* (over-fragmented: completeness 0.362→0.282, adherence −0.08). PGC is
+marginally best but within N=50 noise of baseline. Matches EDA: GenKnowledge docs are short /
+pre-segmented, so re-chunking has little to fix. Chunking is **not** GenKnowledge's lever.
+
+**F2 — CustomerSupport: chunking is the biggest lever found for it, and the dilution hypothesis is
+CONFIRMED.** Finer chunks → monotonically higher relevance (0.205→0.272→0.315→**0.372**) and
+completeness (→**0.256**, doubled). **PGC wins decisively: relevance +0.167 (+81%), completeness
+×2.1** vs the 512 baseline. CustomerSupport's long support docs were burying relevant sentences in
+off-topic text inside big 512-word chunks; PGC's paragraph-coherent chunks isolate them, so the
+relevant-FRACTION jumps. This is the first *retrieval-side* win on CustomerSupport (every other
+retrieval lever — embedder, reranker, hybrid — failed it).
+
+**F3 — The honest cost: a small adherence trade.** PGC's CustomerSupport adherence is 0.460 (vs 0.500
+baseline). Finer chunks trade a little faithfulness for big relevance/completeness gains — a *small*
+trade for a *large* gain, and within N=50 noise (±0.04). Not a free win, but a strong one.
+
+**F4 — recall-vs-TRACe footnote:** unlike hybrid (Exp 6), which raised recall but *lowered* the
+relevant-fraction (longer chunks), PGC raises the relevant-fraction directly by making chunks
+*shorter & coherent* — the opposite, complementary mechanism. Consistent story: on our metric, chunk
+PRECISION (relevant-fraction) is what moves CustomerSupport, and chunk size/structure is the knob.
+
 ### Pooled track — status + next
-1. ✅ Exp 4A BGE null · ✅ 4B grounded_complete (prompt winner) · ✅ 5A complete+rerank (averaged) ·
-   ✅ 5B complete+top3 (GenK win) · ✅ 6 hybrid (negative — recall up, TRACe down, both weightings).
-2. **Retrieval levers are now exhausted** (embedder swap, reranker, hybrid all fail to beat dense for TRACe).
-   Config levers exhausted too. The per-domain bests stand: GenKnowledge → `complete+top3`; CustomerSupport
-   → plain `complete`. CustomerSupport resisted EVERYTHING except generation-side `grounded_complete`.
-3. **Next = bigger generator** (`llama3.1:8b`/`gemma2:9b`) on the per-domain winners — the remaining lever now
-   that config + retrieval are spent (user's order: small-generator levers first, then scale up). Low-odds
-   leftover: extractive prompt in pooled.
+1. ✅ 4A BGE null · 4B complete (prompt winner) · 5A complete+rerank (averaged) · 5B complete+top3
+   (GenK win) · 6 hybrid (negative) · **7 chunking (PGC = big CustomerSupport win; GenK indifferent).**
+2. **Per-domain bests (updated):** GenKnowledge → `complete+top3` (compl 0.655); **CustomerSupport →
+   `pgc`** (rel 0.372, compl 0.256 — overtakes plain `complete`'s 0.249, and far above on relevance).
+   GenKnowledge wants generation-side levers; CustomerSupport wants chunking — a clean domain split.
+3. **Next (obvious): combine PGC + grounded_complete on CustomerSupport** — they attack different
+   stages (chunking = better retrieval material; complete = better use of it), so unlike the
+   averaged combos (5A) they may genuinely STACK. Then bigger generator on the per-domain winners.
+
+> ⚠️ **INFRA NOTE (14 Jun):** the PGC run first SEGFAULTED on CustomerSupport (14,968 chunks). Root
+> cause: faiss-cpu + PyTorch each bundle their own OpenMP runtime; loaded together they trip
+> `OMP: Error #15` → hard crash during faiss search under load. Fixed in `src/__init__.py`
+> (`KMP_DUPLICATE_LIB_OK=TRUE` + `OMP_NUM_THREADS=1`, set before faiss/torch load). Any large pooled
+> index would hit this — teammates included.
 
 ---
 
 *Data sources: `results/pooled/ragbench_matrix_n50_pooled.csv` (Exp 1–3),
 `..._bge.csv` + `..._complete.csv` (Exp 4), `..._complete_rerank.csv` + `..._complete_top3.csv` (Exp 5),
-`..._hybrid.csv` + `..._hybrid_dense_heavy.csv` (Exp 6), `results/pooled/figures/` (charts).
+`..._hybrid.csv` + `..._hybrid_dense_heavy.csv` (Exp 6),
+`..._chunk256.csv` + `..._chunk128.csv` + `..._pgc.csv` (Exp 7), `results/pooled/figures/` (charts).
 Per-example track + reference comparison live in `EXPERIMENTS.md`.*

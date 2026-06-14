@@ -11,6 +11,21 @@ the rule simple). indexing/ imports faiss lazily inside FaissIndex.__init__, so
 importing the package is light and safe here.
 """
 
+# ── OpenMP dual-runtime guard (macOS) — MUST be set before faiss / torch load ──────
+# faiss-cpu and PyTorch each bundle their OWN OpenMP runtime (libomp.dylib). When both
+# get loaded into one process — which the pooled pipeline does (faiss index + torch
+# embedder live together) — the duplicate-OpenMP guard aborts the process:
+#   "OMP: Error #15: Initializing libomp.dylib, but found libomp.dylib already initialized"
+# observed as a hard SEGFAULT during a faiss search after the torch embedder had loaded
+# (first hit on the large pooled PGC index, 14,968 chunks, 14 Jun). KMP_DUPLICATE_LIB_OK
+# tolerates the duplicate; OMP_NUM_THREADS=1 keeps the two runtimes from fighting over
+# threads (negligible cost — exact faiss search + a tiny MiniLM embedder). setdefault so
+# an explicit user/env override still wins. This is the documented workaround for a
+# library-linkage conflict, NOT a logic bug in our code.
+import os as _os
+_os.environ.setdefault("KMP_DUPLICATE_LIB_OK", "TRUE")
+_os.environ.setdefault("OMP_NUM_THREADS", "1")
+
 from . import chunking   # noqa: F401  — registers FixedChunker, NoOpChunker
 from . import indexing    # noqa: F401  — registers FaissIndex (faiss import is lazy)
 from . import retrieval   # noqa: F401  — registers DenseRetriever
