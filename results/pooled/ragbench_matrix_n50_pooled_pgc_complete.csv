@@ -1,0 +1,3 @@
+config_name,config_id,domain,chunker,embedder,index,retriever,reranker,repacker,prompt,generator,n,n_scored,relevance,utilization,completeness,adherence,scoring
+grounded_pooled_pgc_complete.yaml,pgc|minilm|faiss|dense|none|reverse|grounded_complete|ollama,GenKnowledge,pgc,minilm,faiss,dense,none,reverse,grounded_complete,ollama,50,50,0.32040300974146374,0.2176758567946514,0.5087820512820513,0.52,done
+grounded_pooled_pgc_complete.yaml,pgc|minilm|faiss|dense|none|reverse|grounded_complete|ollama,CustomerSupport,pgc,minilm,faiss,dense,none,reverse,grounded_complete,ollama,50,50,0.37275137409294656,0.21317955164594882,0.35131501831501827,0.44,done
