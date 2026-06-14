@@ -1,0 +1,3 @@
+config_name,config_id,domain,chunker,embedder,index,retriever,reranker,repacker,prompt,generator,n,n_scored,relevance,utilization,completeness,adherence,scoring
+grounded_pooled_chunk256.yaml,fixed|minilm|faiss|dense|none|reverse|grounded|ollama,GenKnowledge,fixed,minilm,faiss,dense,none,reverse,grounded,ollama,50,50,0.2891162154036583,0.10747949368924972,0.36,0.58,done
+grounded_pooled_chunk256.yaml,fixed|minilm|faiss|dense|none|reverse|grounded|ollama,CustomerSupport,fixed,minilm,faiss,dense,none,reverse,grounded,ollama,50,50,0.2718567787560541,0.06814641011984804,0.12109523809523809,0.48,done
