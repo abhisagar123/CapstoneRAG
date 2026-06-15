@@ -1,0 +1,21 @@
+# Pooled Exp 8: combine CustomerSupport's two winners — PGC chunking + grounded_complete prompt.
+# ONE change off grounded_pooled_pgc.yaml (prompt grounded -> grounded_complete) AND one change off
+# grounded_pooled_complete.yaml (chunker fixed -> pgc), so it reads against BOTH parents.
+# PGC (Exp 7) = CustomerSupport's biggest lever (rel +81%, compl x2.1); grounded_complete (Exp 4B) =
+# its prompt winner. They hit DIFFERENT stages — PGC gives better retrieval material, complete makes
+# the generator use it fully — so unlike complete+rerank (Exp 5A, which averaged) they may STACK.
+domain: Legal
+
+chunker:   { type: pgc, paragraphs: 2, overlap: 1 }   # vs grounded_pooled_complete (was fixed 512/50)
+embedder:  { type: minilm }
+index:     { type: faiss, corpus_mode: pooled }
+
+retriever: { type: dense, k: 20 }
+reranker:  { type: none, top_n: 5 }
+repacker:  { type: reverse }
+prompt:    { type: grounded_complete }                # vs grounded_pooled_pgc (was grounded)
+generator: { type: ollama, model: llama3.1:8b, max_new_tokens: 256 }   # overridden by --gen-model
+
+splitter:  { type: regex }
+
+seed: 42

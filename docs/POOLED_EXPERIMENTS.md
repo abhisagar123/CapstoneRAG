@@ -415,15 +415,62 @@ relevant-fraction (longer chunks), PGC raises the relevant-fraction directly by 
 *shorter & coherent* — the opposite, complementary mechanism. Consistent story: on our metric, chunk
 PRECISION (relevant-fraction) is what moves CustomerSupport, and chunk size/structure is the knob.
 
+---
+
+## Pooled Exp 8 — PGC + grounded_complete: the levers STACK (orthogonal-stage combine)
+
+**Question:** PGC (Exp 7, CustomerSupport's retrieval-side winner) and grounded_complete (Exp 4B, its
+prompt winner) act on DIFFERENT stages — does combining them stack (beat both parents) or merely
+average (like 5A's complete+rerank)? One-change off each parent. N=50.
+Source: `..._pgc_complete.csv`.
+
+### Stack test vs both parents
+
+**CustomerSupport:**
+
+| metric | pgc | complete | pgc+complete | verdict |
+|---|---|---|---|---|
+| relevance | 0.372 | 0.231 | 0.373 | keeps PGC's win |
+| utilization | 0.122 | 0.115 | **0.213** | **STACKS (> both)** |
+| completeness | 0.256 | 0.249 | **0.351** | **STACKS (> both)** |
+| adherence | 0.460 | 0.540 | 0.440 | **WORSE (< both)** |
+
+**GenKnowledge:** util 0.143/0.187→**0.218** and completeness 0.375/0.418→**0.509** both STACK;
+relevance/adherence ≈ average.
+
+### Findings + reasoning
+
+**F1 — The levers genuinely STACK on utilization + completeness (both domains).** CustomerSupport
+completeness hits **0.351 — the highest of ANY pooled config** (prev best complete_top3 0.318), while
+keeping PGC's relevance win (0.373, also the highest). *Reasoning (the hypothesis, confirmed):* the two
+act on orthogonal stages — PGC gives the generator better *material* (coherent on-topic chunks),
+grounded_complete makes it *use that material fully* — so they compound. Contrast 5A (complete+rerank),
+which *averaged* because both touched retrieval and reshuffled the same pool. **Orthogonal levers stack;
+overlapping levers average** — a clean, report-worthy mechanism.
+
+**F2 — The honest cost: adherence dropped BELOW both parents** (CustomerSupport 0.440 vs pgc 0.460,
+complete 0.540). Same precision/coverage tension: "be thorough" over PGC's many fine-grained chunks
+pulls in more material than the 3B can reliably ground. 0.440 vs 0.460 is ~noise; 0.440 vs complete's
+0.540 is a real −0.10. So it's a *trade*, not a free win.
+
+**F3 — So which is CustomerSupport's winner? It depends on the metric you weight (document, don't hide):**
+- maximize **completeness / coverage** → `pgc_complete` (0.351, best ever) — decisively.
+- maximize **adherence / faithfulness** → plain `complete` (0.540) still wins.
+This per-domain, per-metric trade-off IS the finding — there is no single dominating CustomerSupport config.
+
 ### Pooled track — status + next
-1. ✅ 4A BGE null · 4B complete (prompt winner) · 5A complete+rerank (averaged) · 5B complete+top3
-   (GenK win) · 6 hybrid (negative) · **7 chunking (PGC = big CustomerSupport win; GenK indifferent).**
-2. **Per-domain bests (updated):** GenKnowledge → `complete+top3` (compl 0.655); **CustomerSupport →
-   `pgc`** (rel 0.372, compl 0.256 — overtakes plain `complete`'s 0.249, and far above on relevance).
-   GenKnowledge wants generation-side levers; CustomerSupport wants chunking — a clean domain split.
-3. **Next (obvious): combine PGC + grounded_complete on CustomerSupport** — they attack different
-   stages (chunking = better retrieval material; complete = better use of it), so unlike the
-   averaged combos (5A) they may genuinely STACK. Then bigger generator on the per-domain winners.
+1. ✅ 4A BGE null · 4B complete · 5A complete+rerank (averaged) · 5B complete+top3 (GenK win) ·
+   6 hybrid (negative) · 7 chunking (PGC = CustomerSupport retrieval win) · **8 pgc+complete (STACKS on
+   coverage; trades adherence).**
+2. **Per-domain bests (updated):** GenKnowledge → `complete+top3` (compl 0.655). CustomerSupport →
+   **`pgc_complete` if optimizing coverage (compl 0.351, rel 0.373)**, or plain `complete` if optimizing
+   adherence (0.540). GenKnowledge wants generation-side levers; CustomerSupport wants PGC chunking +
+   the completeness prompt — a clean, documented domain split.
+3. **Levers now broadly explored on the 3B** (chunking, embedder, retriever, reranker, prompt, top_n,
+   and the orthogonal combine). **Next = bigger generator** (`--gen-model llama3.1:8b`) on the per-domain
+   winners — does the generation-side capacity lift the adherence that the coverage-maximizing combos
+   traded away? (User's order: small-gen levers first — now done — then scale up.) Low-odds leftover:
+   extractive prompt.
 
 > ⚠️ **INFRA NOTE (14 Jun):** the PGC run first SEGFAULTED on CustomerSupport (14,968 chunks). Root
 > cause: faiss-cpu + PyTorch each bundle their own OpenMP runtime; loaded together they trip
@@ -436,5 +483,5 @@ PRECISION (relevant-fraction) is what moves CustomerSupport, and chunk size/stru
 *Data sources: `results/pooled/ragbench_matrix_n50_pooled.csv` (Exp 1–3),
 `..._bge.csv` + `..._complete.csv` (Exp 4), `..._complete_rerank.csv` + `..._complete_top3.csv` (Exp 5),
 `..._hybrid.csv` + `..._hybrid_dense_heavy.csv` (Exp 6),
-`..._chunk256.csv` + `..._chunk128.csv` + `..._pgc.csv` (Exp 7), `results/pooled/figures/` (charts).
-Per-example track + reference comparison live in `EXPERIMENTS.md`.*
+`..._chunk256.csv` + `..._chunk128.csv` + `..._pgc.csv` (Exp 7), `..._pgc_complete.csv` (Exp 8),
+`results/pooled/figures/` (charts). Per-example track + reference comparison live in `EXPERIMENTS.md`.*
