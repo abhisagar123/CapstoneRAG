@@ -1,0 +1,27 @@
+# Pooled PGC + mxbai-embed-large-v1: stack CustomerSupport's biggest win (PGC chunking, Exp 7)
+# with a stronger dense embedder. ONE change off grounded_pooled_pgc.yaml: embedder minilm -> mxbai.
+#
+# THE INTERESTING CASE. Prior nulls (BGE, Exp 4A/5) used fixed-512 chunks: big, noisy chunks where a
+# better embedder had little to discriminate. PGC makes topically-coherent paragraph chunks (Exp 7
+# lifted CustSupport relevance 0.205 -> 0.372). HYPOTHESIS: on coherent chunks, embedding QUALITY may
+# finally matter — i.e. mxbai could beat minilm on top of PGC even though it was null on fixed chunks.
+# If this is ALSO null, that's the clean conclusion: dense embedder is not our lever, full stop.
+#
+# CONFIG-ONLY caveat: mxbai is embedded UN-prompted (no query prompt) to stay config-only — see
+# grounded_pooled_mxbai.yaml. config_id NOTE: shares config_id with the other PGC configs (embedder
+# type unchanged = sentence_transformer) -> run with --configs into its OWN --out file.
+domain: CustomerSupport   # overridden by --domains at run time
+
+chunker:   { type: pgc, paragraphs: 2, overlap: 1 }
+embedder:  { type: sentence_transformer, model: mixedbread-ai/mxbai-embed-large-v1 }   # was: minilm (384-dim)
+index:     { type: faiss, corpus_mode: pooled }
+
+retriever: { type: dense, k: 20 }
+reranker:  { type: none, top_n: 5 }
+repacker:  { type: reverse }
+prompt:    { type: grounded }
+generator: { type: ollama, model: llama3.1:8b, max_new_tokens: 256 }   # overridden by --gen-model
+
+splitter:  { type: regex }
+
+seed: 42

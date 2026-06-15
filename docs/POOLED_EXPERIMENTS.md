@@ -458,20 +458,6 @@ pulls in more material than the 3B can reliably ground. 0.440 vs 0.460 is ~noise
 - maximize **adherence / faithfulness** → plain `complete` (0.540) still wins.
 This per-domain, per-metric trade-off IS the finding — there is no single dominating CustomerSupport config.
 
-### Pooled track — status + next
-1. ✅ 4A BGE null · 4B complete · 5A complete+rerank (averaged) · 5B complete+top3 (GenK win) ·
-   6 hybrid (negative) · 7 chunking (PGC = CustomerSupport retrieval win) · **8 pgc+complete (STACKS on
-   coverage; trades adherence).**
-2. **Per-domain bests (updated):** GenKnowledge → `complete+top3` (compl 0.655). CustomerSupport →
-   **`pgc_complete` if optimizing coverage (compl 0.351, rel 0.373)**, or plain `complete` if optimizing
-   adherence (0.540). GenKnowledge wants generation-side levers; CustomerSupport wants PGC chunking +
-   the completeness prompt — a clean, documented domain split.
-3. **Levers now broadly explored on the 3B** (chunking, embedder, retriever, reranker, prompt, top_n,
-   and the orthogonal combine). **Next = bigger generator** (`--gen-model llama3.1:8b`) on the per-domain
-   winners — does the generation-side capacity lift the adherence that the coverage-maximizing combos
-   traded away? (User's order: small-gen levers first — now done — then scale up.) Low-odds leftover:
-   extractive prompt.
-
 > ⚠️ **INFRA NOTE (14 Jun):** the PGC run first SEGFAULTED on CustomerSupport (14,968 chunks). Root
 > cause: faiss-cpu + PyTorch each bundle their own OpenMP runtime; loaded together they trip
 > `OMP: Error #15` → hard crash during faiss search under load. Fixed in `src/__init__.py`
@@ -480,8 +466,87 @@ This per-domain, per-metric trade-off IS the finding — there is no single domi
 
 ---
 
+## Pooled Exp 9 — stronger embedder (mxbai-large) on plain + PGC: the embedder lever is EXHAUSTED
+
+**Question:** every prior embedder swap (BGE, per-example Exp 5 + pooled Exp 4A) was a null vs MiniLM —
+but all used fixed-512 chunks: big, noisy chunks where a better embedder has little to discriminate. PGC
+(Exp 7) makes topically-coherent chunks. **Hypothesis: on coherent chunks, embedding QUALITY may finally
+matter** — mxbai could beat MiniLM on top of PGC even though it was null on fixed chunks. Tested
+`mxbai-embed-large-v1` (1024-dim) as a one-change swap on BOTH the plain pooled baseline AND on top of
+PGC, N=50. Sources: `..._mxbai.csv`, `..._pgc_mxbai.csv`.
+
+> ⚠️ **Config-only caveat:** mxbai documents a query *prompt* ("Represent this sentence for searching…")
+> for best retrieval. We embed it **un-prompted** (symmetric `encode()`) to keep this config-only — adding
+> the prompt is the same `embed_query()` plumbing e5 needs (deferred). So this measures mxbai *without* its
+> prompt. Since BGE needs no prompt and was *also* null, the prompt is unlikely to flip the conclusion.
+
+### Deltas vs the matching MiniLM baseline (same chunker — a clean one-variable swap)
+
+**GenKnowledge:**
+
+| config | rel | util | compl | adh | Δrel vs MiniLM |
+|---|---|---|---|---|---|
+| MiniLM plain (baseline) | 0.304 | 0.128 | 0.362 | 0.540 | — |
+| BGE plain (Exp 4A) | 0.296 | 0.101 | 0.373 | 0.540 | −0.009 |
+| **mxbai plain** | 0.290 | 0.108 | 0.293 | 0.500 | **−0.014** |
+| MiniLM PGC (baseline) | 0.314 | 0.143 | 0.375 | 0.620 | — |
+| **mxbai PGC** | 0.309 | 0.129 | 0.345 | 0.531 | **−0.006** |
+
+**CustomerSupport:**
+
+| config | rel | util | compl | adh | Δrel vs MiniLM |
+|---|---|---|---|---|---|
+| MiniLM plain (baseline) | 0.205 | 0.069 | 0.121 | 0.50 | — |
+| BGE plain (Exp 4A) | 0.197 | 0.057 | 0.147 | 0.48 | −0.008 |
+| **mxbai plain** | 0.190 | 0.076 | 0.166 | 0.46 | **−0.015** |
+| MiniLM PGC (baseline) | 0.372 | 0.122 | 0.256 | 0.46 | — |
+| **mxbai PGC** | 0.367 | 0.149 | 0.225 | 0.56 | **−0.005** |
+
+### Findings + reasoning
+
+**F1 — INFORMATIVE NULL: relevance did not improve in a single cell** (−0.005 to −0.015 everywhere),
+*including the case we cared about* (mxbai-on-PGC: −0.006 GenK / −0.005 CustSupport). The "coherent chunks
+let embedding quality matter" hypothesis is **rejected** — mxbai on PGC is no better than MiniLM on PGC.
+
+**F2 — The embedder lever is now EXHAUSTED by triangulation.** Two stronger dense embedders (BGE 768-dim,
+mxbai 1024-dim) × two chunkers (fixed-512, PGC) × two domains — **none beats the little 384-dim MiniLM on
+TRACe relevance.** The dense embedder is not our lever, full stop. It joins reranker and hybrid (Exp 6) on
+the pile of paper-endorsed *retrieval* levers that don't transfer to our *whole-pipeline-text* metric.
+
+**F3 — Why (consistent with Exp 1's recall diagnostic).** Recall was already fine (Exp 1: gold in top-5
+for 12/12 Qs). A better embedder improves *ranking* (MRR/nDCG — what the embedding papers optimize), but
+our metric is relevance = relevant-FRACTION of retrieved *text*. With a small, on-topic pool, all dense
+models grab roughly the same near-duplicate chunks; reshuffling their order doesn't change the fraction.
+Same recall-≠-TRACe lesson as hybrid (Exp 6).
+
+**F4 — The one tempting number, and why it's NOT a finding.** CustomerSupport mxbai/PGC adherence **+0.100**
+is the lone positive. Resist it: (a) at N=50 each flipped answer = 0.020, so +0.100 = **5 answers** —
+squarely in the noise band that produced the false Exp 3 F3 reranker "win"; (b) it's *contradicted* by the
+same swap on GenK (**−0.089**) — a real effect wouldn't swing opposite by domain; (c) adherence is
+generation-side, which an embedder only touches second-hand → the noisiest possible embedder signal. A
+watch-item for a confirmation re-run, not a result.
+
+### Pooled track — status + next
+1. ✅ 4A BGE null · 4B complete · 5A complete+rerank (averaged) · 5B complete+top3 (GenK win) ·
+   6 hybrid (negative) · 7 chunking (PGC = CustomerSupport retrieval win) · 8 pgc+complete (STACKS on
+   coverage; trades adherence) · **9 mxbai embedder (null; embedder lever exhausted).**
+2. **Per-domain bests (unchanged by Exp 9):** GenKnowledge → `complete+top3` (compl 0.655). CustomerSupport →
+   **`pgc_complete` if optimizing coverage (compl 0.351, rel 0.373)**, or plain `complete` if optimizing
+   adherence (0.540). GenKnowledge wants generation-side levers; CustomerSupport wants PGC chunking +
+   the completeness prompt — a clean, documented domain split.
+3. **3B levers now FULLY explored** (chunking, embedder ×2, retriever, reranker, hybrid, prompt, top_n,
+   orthogonal combine). Every *retrieval-side* lever that helps does so via chunk PRECISION (PGC);
+   stronger embedders / rerankers / hybrid all fail. The persistent gaps (adherence, completeness) are
+   **generation-side**. **Next = bigger generator** (`--gen-model llama3.1:8b`) on the per-domain winners —
+   does generation-side capacity lift the adherence the coverage combos traded away? (User's order:
+   small-gen levers first — now done — then scale up.) Low-odds leftover: extractive prompt; prompted-mxbai
+   (only if a reason to revisit embedders appears).
+
+---
+
 *Data sources: `results/pooled/ragbench_matrix_n50_pooled.csv` (Exp 1–3),
 `..._bge.csv` + `..._complete.csv` (Exp 4), `..._complete_rerank.csv` + `..._complete_top3.csv` (Exp 5),
 `..._hybrid.csv` + `..._hybrid_dense_heavy.csv` (Exp 6),
 `..._chunk256.csv` + `..._chunk128.csv` + `..._pgc.csv` (Exp 7), `..._pgc_complete.csv` (Exp 8),
+`..._mxbai.csv` + `..._pgc_mxbai.csv` (Exp 9),
 `results/pooled/figures/` (charts). Per-example track + reference comparison live in `EXPERIMENTS.md`.*

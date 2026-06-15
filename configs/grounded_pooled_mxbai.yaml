@@ -1,0 +1,28 @@
+# Pooled embedder swap: minilm -> mxbai-embed-large-v1 (1024-dim).
+# ONE change off grounded_pooled_norerank.yaml (the plain pooled baseline): embedder only.
+# Tests a stronger dense embedder on the SAME fixed-512 chunks. Prior: BGE was a NULL here
+# (pooled Exp 4A / per-example Exp 5) — dense swaps mostly reshuffle near-duplicates when recall
+# is already fine — so the more informative comparison is the PGC variant (grounded_pooled_pgc_mxbai.yaml).
+#
+# CONFIG-ONLY caveat: mxbai documents a query PROMPT ("Represent this sentence for searching
+# relevant passages:") for best retrieval. We embed symmetrically (no prompt) to stay config-only;
+# adding it is the same embed_query() plumbing e5 needs (deferred). So this tests mxbai UN-prompted.
+#
+# config_id NOTE: embedder TYPE is `sentence_transformer` (same as grounded_pooled_bge), so this
+# SHARES a config_id with the bge / plain-baseline configs -> run with --configs into its OWN --out
+# file (the build_grid collision guard would otherwise fire when globbing all configs/*.yaml).
+domain: GenKnowledge      # overridden by --domains at run time
+
+chunker:   { type: fixed, size: 512, overlap: 50 }
+embedder:  { type: sentence_transformer, model: mixedbread-ai/mxbai-embed-large-v1 }   # was: minilm (384-dim)
+index:     { type: faiss, corpus_mode: pooled }
+
+retriever: { type: dense, k: 20 }
+reranker:  { type: none, top_n: 5 }
+repacker:  { type: reverse }
+prompt:    { type: grounded }
+generator: { type: ollama, model: llama3.1:8b, max_new_tokens: 256 }   # overridden by --gen-model
+
+splitter:  { type: regex }
+
+seed: 42
