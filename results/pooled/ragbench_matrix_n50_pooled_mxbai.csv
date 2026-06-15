@@ -1,0 +1,3 @@
+config_name,config_id,domain,chunker,embedder,index,retriever,reranker,repacker,prompt,generator,n,n_scored,relevance,utilization,completeness,adherence,scoring
+grounded_pooled_mxbai.yaml,fixed|sentence_transformer|faiss|dense|none|reverse|grounded|ollama,GenKnowledge,fixed,sentence_transformer,faiss,dense,none,reverse,grounded,ollama,50,50,0.29025490776129675,0.1077557109074886,0.29275396825396827,0.5,done
+grounded_pooled_mxbai.yaml,fixed|sentence_transformer|faiss|dense|none|reverse|grounded|ollama,CustomerSupport,fixed,sentence_transformer,faiss,dense,none,reverse,grounded,ollama,50,50,0.19012939869498258,0.07578780229899326,0.16615079365079363,0.46,done
