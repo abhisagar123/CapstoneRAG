@@ -71,6 +71,13 @@ def _mean(values: list) -> float | str:
     nums = [float(v) for v in values if isinstance(v, (int, float, bool))]
     return sum(nums) / len(nums) if nums else ""
 
+def _sum_counts(values: list) -> float | str:
+    """Sum of a list of numeric micro-values. Same blank-on-empty behavior as _mean().
+    Use this INSTEAD of _mean() below if you want TOTAL counts across all N examples
+    for a config, rather than a per-example average."""
+    nums = [float(v) for v in values if isinstance(v, (int, float, bool))]
+    return sum(nums) if nums else ""
+
 
 def _dedup_docs(docs) -> list[str]:
     """Unique documents, order-preserving (the pooled corpus is the dedup'd union)."""
@@ -105,7 +112,10 @@ def run_experiment(cfg, examples, *, segmenter: OutputSegmenter, judge=None,
     pipe = build_pipeline(cfg)
     pooled = cfg.index.params.get("corpus_mode") == "pooled"
     n, n_scored = 0, 0
-    score_lists = {"relevance": [], "utilization": [], "completeness": [], "adherence": []}
+
+    score_lists = {"relevance": [], "utilization": [], "completeness": [], "adherence": [],
+                   "relevant_count": [], "total_sentences": [], "utilized_count": [],
+                   "overlap_count": [], "unsupported_count": []}
 
     if pooled:
         # Build the shared index ONCE, then never reset between questions.
@@ -144,13 +154,24 @@ def run_experiment(cfg, examples, *, segmenter: OutputSegmenter, judge=None,
         "utilization": _mean(score_lists["utilization"]),
         "completeness": _mean(score_lists["completeness"]),
         "adherence": _mean(score_lists["adherence"]),
+        # Micro-values behind each score (see judge/base.py scores_from_label).
+        # Using _mean() to match the same per-example-average convention as the 4
+        # scores above. Swap to _sum_counts(...) on any line below if you'd rather
+        # see TOTALS across all N examples for that column instead.
+        "relevant_count": _mean(score_lists["relevant_count"]),
+        "total_sentences": _mean(score_lists["total_sentences"]),
+        "utilized_count": _mean(score_lists["utilized_count"]),
+        "overlap_count": _mean(score_lists["overlap_count"]),
+        "unsupported_count": _mean(score_lists["unsupported_count"]),
         "scoring": "done" if n_scored else "pending (no judge)",
     }
 
-
 FIELDNAMES = ["config_id", "domain", "chunker", "embedder", "index", "retriever",
               "reranker", "repacker", "prompt", "generator", "n", "n_scored",
-              "relevance", "utilization", "completeness", "adherence", "scoring"]
+              "relevance", "utilization", "completeness", "adherence",
+              "relevant_count", "total_sentences", "utilized_count", "overlap_count",
+              "unsupported_count",
+              "scoring"]
 
 
 def _already_done(out_csv: str) -> set:
