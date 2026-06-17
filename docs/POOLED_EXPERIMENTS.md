@@ -544,9 +544,217 @@ watch-item for a confirmation re-run, not a result.
 
 ---
 
+## Pooled Exp 10 — Semantic chunking (cut on MEANING): the PGC mechanism GENERALIZES, but the gains are a chunk-size artifact
+
+**Question:** PGC (Exp 7) was our only retrieval-side win, and only on CustomerSupport. Was that a
+one-off quirk of *paragraph* structure, or is there a general lever "smaller, coherent chunks raise
+the relevant-FRACTION"? Semantic chunking is the clean test: it cuts on a **completely different
+signal** — embed every sentence, cut where neighbour cosine similarity drops (topic shift) — so if it
+reproduces PGC's pattern, the lever is "coherent chunks," not "PGC specifically." Ran three granularity
+settings as one-change swaps off the pooled baseline (chunker fixed-512 → semantic), N=50:
+`percentile-90` (coarse), `percentile-80` (finer), `absolute-0.5` (finest). Sources:
+`..._semantic_p90.csv`, `..._semantic_p80.csv`, `..._semantic_abs.csv`. All 50/50 scored, 0 parse fails.
+
+### The sweep vs the chunking baselines (plain `grounded` prompt — apples-to-apples)
+
+**CustomerSupport** (relevance climbs monotonically as cuts get finer):
+
+| config | median words/chunk | rel | util | compl | adh |
+|---|---|---|---|---|---|
+| fixed-512 (baseline) | 289 | 0.205 | 0.069 | 0.121 | 0.500 |
+| fixed-128 | ~70 | 0.315 | 0.084 | 0.179 | 0.440 |
+| PGC (prior best) | 30 | 0.372 | 0.122 | 0.256 | 0.460 |
+| semantic p90 | 91 | 0.270 | 0.117 | 0.154 | 0.500 |
+| semantic p80 | 54 | 0.316 | 0.134 | 0.257 | 0.480 |
+| **semantic abs-0.5** | **19** | **0.587** | **0.222** | 0.230 | 0.400 |
+
+**GenKnowledge** (same shape; chunking is otherwise flat here — short docs, median 84 w/doc):
+
+| config | median words/chunk | rel | util | compl | adh |
+|---|---|---|---|---|---|
+| fixed-512 (baseline) | 86 | 0.304 | 0.128 | 0.362 | 0.540 |
+| PGC | — | 0.314 | 0.143 | 0.375 | 0.620 |
+| semantic p90 | — | 0.406 | 0.137 | 0.310 | 0.480 |
+| semantic p80 | — | 0.393 | 0.157 | 0.369 | 0.480 |
+| **semantic abs-0.5** | 20 | 0.583 | 0.224 | 0.420 | 0.520 |
+
+### Findings + reasoning
+
+**F1 — the PGC mechanism GENERALIZES (the conceptual win).** A cut rule with nothing in common with
+PGC (sentence embeddings vs blank lines) reproduces the same pattern on *both* domains: finer, coherent
+chunks → higher relevance + utilization. So the lever is **"small coherent chunks raise the
+relevant-fraction," not "PGC specifically."** PGC was not a one-off. Report-worthy: two independent
+chunkers, one mechanism.
+
+**F2 — but most of the relevance jump is a chunk-SIZE ARTIFACT, not new retrieval quality** (the Exp 6
+hybrid lesson, in reverse). TRACe relevance = relevant-sentences / **total-retrieved-sentences**. Tiny
+chunks shrink the denominator mechanically. Measured on the real corpus: PGC median 30 w/chunk →
+semantic-abs **19** (1.58× finer); CustomerSupport relevance 0.372 → 0.587 (**1.58× higher**) — the
+ratios match almost exactly, so the gain is denominator, not quality. Where hybrid (Exp 6) made chunks
+*longer* and relevance *fell*, semantic-abs makes them *shorter* and relevance *rises* — same metric
+mechanic, opposite sign. (`abs-0.5` also emits ~7% near-empty ≤2-word fragments — it over-cuts.)
+
+**F3 — adherence, the gap we actually care about, does NOT improve.** Flat on GenK (0.52 vs baseline
+0.54), **down** on CustomerSupport (0.40 vs 0.50). Adherence is a boolean grounding rate — *not*
+confounded by chunk size — so it is the trustworthy signal here, and it says: finer chunks → less
+coverage per chunk → the 3B fills gaps from parametric knowledge → unsupported sentences. Same trade as
+top3 (Exp 2) and PGC (Exp 7). Semantic chunking **joins the pile** of retrieval-side levers (reranker,
+BGE, mxbai, hybrid) that move relevance/util but leave the adherence gap untouched.
+
+**F4 — the one signal that ISN'T just smallness:** semantic-**p80** matches PGC's completeness (0.257 vs
+0.256) at *coarser* granularity (54 vs 30 w/chunk) — i.e. coherence buys a little real coverage beyond
+being small. And completeness (denominator = relevant set, not all-retrieved → far less confounded) rose
+on GenK abs (0.362 → 0.420). Soft, but real. It's why semantic chunking is a legitimate *capability*,
+not a measurement trick — just not a fix for our bottleneck.
+
+**Bottom line:** semantic chunking confirms the chunk-precision lever generalizes, but it neither beats
+PGC where it counts nor closes the adherence/completeness gap. **Per-domain bests UNCHANGED:** GenK →
+`complete+top3` (compl 0.655); CustomerSupport → `pgc_complete` (coverage 0.351) / plain `complete`
+(adherence 0.540). The persistent gap is generation-side — the generator is the one lever held fixed at
+3B across all 10 experiments.
+
+---
+
+## Pooled Exp 11 — Reranker-rescue on the per-domain coverage winners: REJECTED (the 3B is exhausted)
+
+**Question:** our best-coverage config in each domain trades away adherence — GenKnowledge
+`complete_top3` (completeness 0.655, project-best) sits at adherence 0.540; CustomerSupport
+`pgc_complete` (completeness 0.351, best) dropped to adherence 0.440. The reranker-rescue is PROVEN
+once: plain `top3` adherence 0.408 → `top3_rerank` **0.520 (+0.11)** — re-scoring the kept chunks made
+them better-grounded. **Hypothesis: stack that rescue onto the coverage winners** — add the
+cross-encoder so the model grounds a thorough answer on *better* chunks, recovering adherence without
+losing coverage. Two one-change swaps (reranker none → cross_encoder), one per domain, N=50. Sources:
+`..._complete_top3_rerank.csv` (GenK), `..._pgc_complete_rerank.csv` (CustSupport). Both 50/50, 0 fails.
+
+### vs each parent (the no-reranker config it tries to rescue)
+
+**GenKnowledge** — `complete_top3` + cross_encoder@top3:
+
+| metric | parent `complete_top3` | + reranker | Δ |
+|---|---|---|---|
+| relevance | 0.402 | 0.453 | +0.051 |
+| utilization | 0.313 | 0.266 | −0.047 |
+| **completeness** | **0.655** | **0.450** | **−0.205** |
+| adherence | 0.540 | 0.560 | +0.020 |
+
+**CustomerSupport** — `pgc_complete` + cross_encoder@top5:
+
+| metric | parent `pgc_complete` | + reranker | Δ |
+|---|---|---|---|
+| relevance | 0.373 | 0.368 | −0.005 |
+| utilization | 0.213 | 0.238 | +0.025 |
+| completeness | 0.351 | 0.383 | +0.032 |
+| adherence | 0.440 | 0.440 | 0.000 |
+
+### Findings + reasoning
+
+**F1 — the rescue is REJECTED in both domains.** Adherence was the bar to clear; at N=50 each answer =
+0.020, so the noise band is ±0.02–0.04. GenK +0.020 = **one answer = noise**; CustSupport **0.000 =
+flat**. Neither recovered the traded-away adherence. **Per-domain bests UNCHANGED:** GenK stays plain
+`complete_top3` (compl 0.655 ≫ the reranked 0.450); CustSupport stays `pgc_complete`/`complete`.
+
+**F2 — on GenK the reranker actively HURT the thing that config is FOR.** Completeness 0.655 → 0.450 (a
+clear, far-beyond-noise drop), dragging the project's best-coverage config down to mid-pack. The
+cross-encoder re-scores top-20 by query-chunk *ranking* relevance and keeps a different 3 — and those 3
+covered less of the judge's relevant-sentence set. Same recall/ranking-≠-TRACe-coverage lesson as hybrid
+(Exp 6) and the embedders (Exp 9): rerankers optimize ranking, not coverage of relevant text.
+
+**F3 — WHY the rescue worked on plain grounded but not on grounded_complete (the mechanistic point).**
+Under **plain grounded** the model answers narrowly from context, so better chunks (rerank) = more
+groundable material = adherence up (the proven +0.11 on top3). Under **grounded_complete** ("be thorough,
+use every relevant detail") the model is *already* pushed to over-reach — it pulls in more than the 3B
+can ground **regardless of which chunks** it sees, so improving chunk quality can't relieve the pressure.
+**The bottleneck under the coverage prompt is the generator's capacity to ground a thorough answer, not
+the chunks.** This is the Exp 5A / Exp 8 "overlapping levers average, they don't stack" lesson, third
+confirmation: reranker and grounded_complete both act on the context-the-generator-uses, so they
+interfere rather than compound.
+
+**Bottom line — the 3B is EXHAUSTED, single levers AND stacks.** Across 11 experiments every within-3B
+knob has been swept and every promising stack tested; the persistent adherence/completeness gaps survive
+all of them. The one component held FIXED in all 11 is the generator (llama3.2:3b). F3 is now a positive
+*mechanistic* reason — not just elimination — that capacity is the bottleneck. **Next = bigger generator
+(`llama3.1:8b` / `gemma2:9b`, both pulled) on the per-domain winners** (`complete_top3` GenK,
+`pgc_complete` CustSupport): does generation-side capacity ground the thorough answers the 3B couldn't?
+
+---
+
+## Pooled Exp 12 — BIGGER GENERATOR (llama3.1:8b) on the per-domain winners: the lever for CustomerSupport, NOT GenKnowledge
+
+**Question:** the generator (llama3.2:3b) is the ONE component held fixed across Exp 1–11, and Exp 11 F3
+gave a positive mechanistic reason it's the bottleneck — under `grounded_complete` the 3B over-reaches
+and can't ground a thorough answer regardless of chunks. **Does generation-side capacity fix it?** Ran
+`llama3.1:8b` (pulled) on each domain's winner — `complete_top3` (GenK), `pgc_complete` (CustSupport) —
+ONLY the generator changed (`--gen-model llama3.1:8b`, same retrieval/seed), so any delta is pure
+capacity. Per-example Exp 6A proved answers aren't length-capped → expect BETTER grounding at normal
+length, not longer answers. (Bonus: the substring `--configs` filter also ran each winner's `_rerank`
+variant on 8B — a free robustness check on Exp 11.) Sources: `..._complete_top3_llama8b.csv`,
+`..._pgc_complete_llama8b.csv`. N=50.
+
+### 8B vs 3B (identical retrieval — only the generator changed)
+
+**CustomerSupport — `pgc_complete`:**
+
+| metric | 3B | 8B | Δ |
+|---|---|---|---|
+| relevance | 0.373 | 0.351 | −0.022 |
+| utilization | 0.213 | 0.248 | +0.034 |
+| completeness | 0.351 | **0.473** | **+0.122** |
+| adherence | 0.440 | **0.600** | **+0.160** |
+
+**GenKnowledge — `complete_top3`** (8B n_scored=49, one skipped):
+
+| metric | 3B | 8B | Δ |
+|---|---|---|---|
+| relevance | 0.402 | 0.410 | +0.008 |
+| utilization | 0.313 | 0.246 | −0.067 |
+| completeness | **0.655** | 0.445 | **−0.209** |
+| adherence | 0.540 | 0.551 | +0.011 |
+
+### Findings + reasoning
+
+**F1 — CustomerSupport: the bigger generator IS the lever (Exp 11 F3 confirmed).** Adherence +0.160 =
+8 answers, far beyond the ±0.04 N=50 noise band, AND completeness +0.122, moving together with relevance
+flat — the **first lever in the whole pooled track to lift BOTH persistent gaps at once on
+CustomerSupport.** Lands `pgc_complete`@8B at adherence **0.600** and completeness **0.473** — *both the
+best of any CustomerSupport pooled config.* The 3B couldn't ground a thorough answer; the 8B can. **New
+CustomerSupport winner: `pgc_complete` on llama3.1:8b.**
+
+**F2 — GenKnowledge: capacity did NOT help, and completeness fell.** Adherence flat (+0.011 = noise);
+completeness dropped 0.655 → 0.445. The mechanism is legible: completeness = |R∩U|/|R|, and R (relevant
+sentences) depends only on the retrieved context, which is **identical** across the two runs (same
+chunker/retriever/seed) → the drop is entirely in U: **the 8B utilized FEWER relevant sentences.**
+Utilization corroborates (0.313 → 0.246, also down). On GenK the 8B wrote *tighter* answers; on
+CustSupport it used *more* context — opposite behaviours, same model.
+
+**F3 — the GenK drop re-frames the 0.655 "project-best completeness."** Exp 5B flagged 0.655 as "a big
+jump on a noisy derived metric, wants a sanity re-run." This *is* that independent re-run (only the
+generator changed) and **0.655 did not survive.** Likely story: under "be thorough" the 3B padded answers
+with extra relevant-sentence text (mechanically inflating completeness), while the stronger 8B answers
+more precisely. PLAUSIBLE that the 8B answer is higher quality despite lower completeness — but that
+claim needs an answer-text probe (aggregates can't settle it). For now: report both, and treat the 3B
+0.655 as partly a thoroughness-padding artifact. **GenK best stays `complete_top3` (3B) with that caveat.**
+
+**F4 — Exp 11's reranker-rejection HOLDS at 8B (free robustness check).** The `_rerank` variants came out
+worse on 8B too: CustSupport `pgc_complete_rerank` completeness 0.473→0.263, adherence 0.600→0.420; GenK
+`complete_top3_rerank` adherence 0.560→0.480. The rescue fails regardless of generator size — reranker +
+grounded_complete interfere at any capacity (Exp 11 F3 confirmed across model sizes).
+
+**Bottom line — DOMAIN-SPLIT, consistent with the whole track.** CustomerSupport → **`pgc_complete` @
+llama3.1:8b** is the clean new best (adh 0.600 + compl 0.473, both track-best): PGC chunking + the
+completeness prompt + a generator big enough to ground it. GenKnowledge → the generator is NOT the lever;
+best stays `complete_top3` (3B), 0.655 completeness caveated as partly artifact. The generator scale-up
+closes the CustomerSupport gap and, by *not* closing GenKnowledge, sharpens that GenK's ceiling is set
+elsewhere (short docs, already-near-reference relevance — see per-example track). Optional follow-ups:
+gemma2:9b as a 2nd big model (confirm CustSupport, retest GenK); an answer-text probe to settle F3.
+
+---
+
 *Data sources: `results/pooled/ragbench_matrix_n50_pooled.csv` (Exp 1–3),
 `..._bge.csv` + `..._complete.csv` (Exp 4), `..._complete_rerank.csv` + `..._complete_top3.csv` (Exp 5),
 `..._hybrid.csv` + `..._hybrid_dense_heavy.csv` (Exp 6),
 `..._chunk256.csv` + `..._chunk128.csv` + `..._pgc.csv` (Exp 7), `..._pgc_complete.csv` (Exp 8),
 `..._mxbai.csv` + `..._pgc_mxbai.csv` (Exp 9),
+`..._semantic_p90.csv` + `..._semantic_p80.csv` + `..._semantic_abs.csv` (Exp 10),
+`..._complete_top3_rerank.csv` + `..._pgc_complete_rerank.csv` (Exp 11),
+`..._complete_top3_llama8b.csv` + `..._pgc_complete_llama8b.csv` (Exp 12),
 `results/pooled/figures/` (charts). Per-example track + reference comparison live in `EXPERIMENTS.md`.*

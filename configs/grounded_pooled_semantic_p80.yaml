@@ -1,0 +1,26 @@
+# Pooled SEMANTIC chunking — FINER granularity (part of the semantic granularity sweep).
+# Identical to grounded_pooled_semantic_p90.yaml EXCEPT percentile 90 -> 80: a lower percentile
+# means MORE neighbour-gaps clear the cut threshold, so MORE cuts -> smaller, more-coherent chunks.
+# We sweep p90 (coarse) -> p80 (finer) -> absolute-0.5 (fine) because granularity is the lever:
+# our pooled relevance win (PGC, Exp 7) came from SMALL coherent chunks (~28 words); p90 alone
+# was too coarse (~110-word chunks) to beat it, so we test whether finer semantic chunks can.
+#
+# ⚠️ SHARED config_id with the other semantic configs (chunker TYPE = "semantic" for all three;
+# only the PARAMS differ). config_id is built from stage TYPES, so build_grid's collision guard
+# treats them as the same row -> each MUST run into its OWN --out CSV (same rule as the Exp 7
+# chunk256/chunk128 size sweep). Run: --configs grounded_pooled_semantic_p80 --out ..._semantic_p80.csv
+domain: Legal
+
+chunker:   { type: semantic, breakpoint: percentile, percentile: 80 }   # finer than _p90
+embedder:  { type: minilm }
+index:     { type: faiss, corpus_mode: pooled }
+
+retriever: { type: dense, k: 20 }
+reranker:  { type: none, top_n: 5 }
+repacker:  { type: reverse }
+prompt:    { type: grounded }
+generator: { type: ollama, model: llama3.1:8b, max_new_tokens: 256 }   # overridden by --gen-model
+
+splitter:  { type: regex }
+
+seed: 42

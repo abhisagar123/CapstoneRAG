@@ -1,0 +1,25 @@
+# Pooled SEMANTIC chunking — ABSOLUTE breakpoint (the FINE end of the granularity sweep).
+# Identical to grounded_pooled_semantic_p90.yaml EXCEPT the cut method: instead of the percentile
+# (self-calibrating per doc), cut wherever neighbour cosine similarity drops below a FIXED 0.5.
+# On real CustomerSupport docs this gave ~41-word chunks (vs PGC's winning ~28) — the closest
+# semantic setting to PGC's granularity, so it's semantic chunking's best single shot at the win.
+# Also an ablation in itself: percentile vs absolute is the cut-method comparison.
+#
+# ⚠️ SHARED config_id with the other semantic configs (chunker TYPE = "semantic"; only PARAMS
+# differ) -> run into its OWN --out CSV (build_grid's collision guard, same as the size sweep).
+# Run: --configs grounded_pooled_semantic_abs --out ..._semantic_abs.csv
+domain: Legal
+
+chunker:   { type: semantic, breakpoint: absolute, threshold: 0.5 }   # fine; cut where sim < 0.5
+embedder:  { type: minilm }
+index:     { type: faiss, corpus_mode: pooled }
+
+retriever: { type: dense, k: 20 }
+reranker:  { type: none, top_n: 5 }
+repacker:  { type: reverse }
+prompt:    { type: grounded }
+generator: { type: ollama, model: llama3.1:8b, max_new_tokens: 256 }   # overridden by --gen-model
+
+splitter:  { type: regex }
+
+seed: 42
