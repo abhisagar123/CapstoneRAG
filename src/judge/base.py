@@ -267,17 +267,32 @@ def parse_label_json(text: str) -> dict:
 def scores_from_label(keyed: dict, label: dict) -> dict:
     """Map judge label JSON to TRACe scores via the validated trace.py math.
 
-    Adherence uses the judge's `overall_supported` boolean directly — that field
-    IS what RAGBench stored as `adherence_score` (§9.6), the judge's holistic
-    conclusion. Relevance/utilization/completeness use the R/U key lists with the
-    same list-vs-set semantics as trace.py.
+    Also returns the micro-values behind each score for analysis.
     """
     total = total_doc_sentences(keyed["documents_sentences"])
+
     R = label.get("all_relevant_sentence_keys", [])
     U = label.get("all_utilized_sentence_keys", [])
+
+    overlap = set(R) & set(U)
+
+    sentence_info = label.get("sentence_support_information", [])
+    unsupported_count = sum(
+        1 for s in sentence_info
+        if not s.get("fully_supported", False)
+    )
+
     return {
+        # TRACe scores
         "relevance": relevance(R, total),
         "utilization": utilization(U, total),
         "completeness": completeness(R, U),
         "adherence": bool(label.get("overall_supported", False)),
+
+        # Micro-metrics
+        "relevant_count": len(R),
+        "total_sentences": total,
+        "utilized_count": len(U),
+        "overlap_count": len(overlap),
+        "unsupported_count": unsupported_count,
     }

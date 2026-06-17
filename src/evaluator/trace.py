@@ -91,6 +91,47 @@ def adherence(unsupported_response_sentence_keys) -> bool:
     """
     return len(unsupported_response_sentence_keys) == 0
 
+def scores_from_label(keyed: dict, label: dict) -> dict:
+    """Map judge label JSON to TRACe scores via the validated trace.py math.
+
+    Adherence uses the judge's `overall_supported` boolean directly — that field
+    IS what RAGBench stored as `adherence_score` (§9.6), the judge's holistic
+    conclusion. Relevance/utilization/completeness use the R/U key lists with the
+    same list-vs-set semantics as trace.py.
+
+    Also returns the MICRO values behind each score (the raw counts feeding the
+    final division), for later analysis:
+        relevant_count / total_sentences   -> relevance
+        utilized_count  (same total_sentences) -> utilization
+        overlap_count / relevant_count     -> completeness
+        unsupported_count                  -> adherence's "how many sentences the
+                                               judge flagged unsupported" — informational
+                                               only, NOT what decides the True/False
+                                               score (that's still `overall_supported`)
+    """
+    total = total_doc_sentences(keyed["documents_sentences"])
+    R = label.get("all_relevant_sentence_keys", [])
+    U = label.get("all_utilized_sentence_keys", [])
+    overlap = set(R) & set(U)   # same intersection completeness() computes internally
+
+    # Derived for reporting only: count response sentences the judge marked NOT
+    # fully supported, via its per-sentence breakdown.
+    sentence_info = label.get("sentence_support_information", [])
+    unsupported_count = sum(1 for s in sentence_info if not s.get("fully_supported", False))
+
+    return {
+        "relevance": relevance(R, total),
+        "utilization": utilization(U, total),
+        "completeness": completeness(R, U),
+        "adherence": bool(label.get("overall_supported", False)),
+        # --- micro values (analysis only, not used in the scores above) ---
+        "relevant_count": len(R),
+        "total_sentences": total,
+        "utilized_count": len(U),
+        "overlap_count": len(overlap),
+        "unsupported_count": unsupported_count,
+    }
+
 
 def score_from_reference_labels(example) -> dict:
     """Compute all four TRACe scores for a RAGBench example from its GOLD labels.
