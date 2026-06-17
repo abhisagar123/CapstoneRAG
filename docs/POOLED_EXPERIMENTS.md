@@ -873,6 +873,55 @@ stage of the paper's recommended pipeline now tested, the only lever that closes
 **generator capacity, and only where the domain supports it** (CustS, Exp 12). The summarization brick (none /
 lexical / extractive_embedding) is reusable for the demo + report.
 
+## Pooled Exp 14b — Compression under PLAIN grounded: hypothesis FALSIFIED — the prompt isn't the driver, document structure is
+
+**Question (pre-registered):** Exp 14 F3 argued compression crashed CustS adherence *because*
+`grounded_complete` makes the model over-reach, so shrinking its context worsened the over-reach. The
+mirror prediction: under **plain `grounded`** (model answers narrowly from context), cleaner context =
+more groundable material → **adherence should RISE in both domains** (the reranker-rescue split, Exp 3/11).
+Clean test: add the embedding compressor to the Exp 1 baseline (plain grounded, fixed-512, top5, 3B) —
+ONE-variable swap, same `ratio: 0.5` as Exp 14, so the ONLY meaningful difference from the failed Exp 14
+arm is the prompt. Both domains, N=50, 50/50 scored. Source: `..._compress_emb.csv`. **Pre-registered
+verdict:** rise beyond ±0.04 in both → confirmed; flat → F3 incomplete.
+
+### vs the Exp 1 baseline (plain grounded @ 3B — only the summarizer stage added)
+
+| metric | GenK base | GenK +compress | CustS base | CustS +compress |
+|---|---|---|---|---|
+| relevance | 0.304 | 0.407 | 0.205 | 0.268 |
+| utilization | 0.128 | 0.168 | 0.069 | 0.092 |
+| completeness | 0.362 | 0.347 | 0.121 | 0.197 |
+| **adherence** | **0.540** | **0.400** (−0.140) | **0.500** | **0.560** (+0.060) |
+
+### Findings + reasoning
+
+**F1 — HYPOTHESIS FALSIFIED (pre-registered, reported honestly).** The prediction was "adherence rises in
+BOTH under plain grounded." Reality: it **fell hard on GenK (−0.140 = 7 answers, far beyond the ±0.04 band)**
+and rose only at the noise EDGE on CustS (+0.060 = 3 answers). Not "both rise" → rejected. Worse for the
+hypothesis: compression hurt GenK *more* under plain grounded (−0.140) than under grounded_complete (−0.01,
+Exp 14) — the **opposite** of what the over-reach story predicted. The prompt is NOT the variable governing
+whether compression helps adherence.
+
+**F2 — the real driver is COVERAGE LOSS, set by document structure — which re-derives the text-reduction
+domain split.** Adherence falls when compression cuts *needed facts*, not noise; whether it cuts facts depends
+on whether the docs have removable padding:
+  - **GenK: short, atomic docs** (~86 w ≈ one chunk, EDA/Exp 1). No padding to remove → ratio-0.5 cutting
+    throws away needed sentences → the 3B gap-fills from parametric knowledge → adherence craters. This is the
+    SAME failure mode as plain top_n=3 (Exp 2) and fixed-128 over-fragmentation (Exp 7 F1).
+  - **CustS: long, padded support docs.** Compression cuts off-topic sentences, not facts → adherence holds
+    (+0.06, mechanism-consistent but at the noise edge, and it does NOT beat the CustS winner `pgc_complete`@8B
+    adh 0.600 / compl 0.473 — this is a 3B config at adh 0.560 / compl 0.197).
+  So compression behaves like EVERY other text-reduction lever (top_n, finer chunks, semantic chunking):
+  helps/neutral on padded-doc domains (CustS), hurts atomic-doc domains (GenK). The relevance rises (+0.10 /
+  +0.06) are again the size DENOMINATOR artifact (Exp 10), not new quality — discounted.
+
+**F3 — verdict: the compression line is CLOSED.** Across Exp 14 (on winners) + 14b (on the plain baseline),
+compression never lifts adherence where it matters; its effect is fully explained by the text-reduction
+domain split (F2), not by the prompt. Per-domain bests UNCHANGED (GenK `complete_top3` 3B; CustS
+`pgc_complete`@8B). The lasting value of the compression work stays Exp 14 F2 (embedding selection ≫ lexical —
+the project's first embedding-component win) + the now-falsified-and-corrected mechanism here. The faithfulness
+gap remains closed ONLY by generator capacity, and only where the domain supports it (CustS, Exp 12).
+
 ---
 
 *Data sources: `results/pooled/ragbench_matrix_n50_pooled.csv` (Exp 1–3),
@@ -885,4 +934,5 @@ lexical / extractive_embedding) is reusable for the demo + report.
 `..._complete_top3_llama8b.csv` + `..._pgc_complete_llama8b.csv` (Exp 12),
 `..._extractive.csv` (Exp 13),
 `..._ctop3_compress_emb.csv` + `..._ctop3_compress_lex.csv` + `..._pgccomplete_compress_emb.csv` (Exp 14),
+`..._compress_emb.csv` (Exp 14b),
 `results/pooled/figures/` (charts). Per-example track + reference comparison live in `EXPERIMENTS.md`.*
