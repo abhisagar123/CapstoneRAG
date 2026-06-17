@@ -1,0 +1,31 @@
+# Pooled Exp 14b — context COMPRESSION under the PLAIN grounded prompt (the mechanism test).
+# ONE change off grounded_pooled_norerank.yaml (the Exp 1 baseline): add a `summarizer`
+# stage (extractive_embedding, ratio 0.5). Everything else = the canonical baseline, so any
+# delta is the compression alone — and reads directly against the most-cited pooled numbers.
+#
+# WHY this base (not complete_top3): Exp 14 found compression REJECTED on the winners, but its
+# F3 diagnosis was mechanistic — compression crashed adherence *because* grounded_complete makes
+# the model OVER-REACH, so shrinking its context made the over-reach worse. The mirror
+# prediction: under PLAIN `grounded` the model answers NARROWLY from context, so cleaner context
+# = more groundable material → adherence should RISE (the same split seen for reranker-rescue:
+# helped under grounded, failed under grounded_complete, Exp 3/11). Basing this on the PLAIN
+# baseline (top5, fixed-512) keeps it a clean single-variable test of the PROMPT — no top3
+# coverage-starvation confound (Exp 2). ratio 0.5 matches the failed Exp 14 arm so the ONLY
+# meaningful difference is the prompt. Watch ADHERENCE (the gap; not size-confounded). Run BOTH
+# domains — the mechanism should apply to both.
+domain: Legal
+
+chunker:    { type: fixed, size: 512, overlap: 50 }
+embedder:   { type: minilm }
+index:      { type: faiss, corpus_mode: pooled }
+
+retriever:  { type: dense, k: 20 }
+reranker:   { type: none, top_n: 5 }
+repacker:   { type: reverse }
+summarizer: { type: extractive_embedding, ratio: 0.5 }   # NEW stage — the only change vs the Exp 1 baseline
+prompt:     { type: grounded }                            # PLAIN grounded (the variable under test vs Exp 14's grounded_complete)
+generator:  { type: ollama, model: llama3.2:3b, max_new_tokens: 256 }   # baseline gen; overridden by --gen-model
+
+splitter:   { type: regex }
+
+seed: 42
