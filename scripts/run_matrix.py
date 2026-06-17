@@ -83,13 +83,14 @@ def main():
 
     import yaml
     import src  # noqa: F401
+    from src.chunking import load_chunkers
     from src.embeddings import load_embedders
     from src.generation import load_generators
     from src.reranking import load_rerankers
     from src.data_loader import load_domain
     from src.segmentation import OutputSegmenter, RegexSplitter
     from src.runner import build_grid, run_named_matrix
-    load_embedders(); load_generators(); load_rerankers()
+    load_chunkers(); load_embedders(); load_generators(); load_rerankers()
 
     judge = build_judge(args.backend, args.judge_model)
     gen_override = ({"type": "ollama", "model": args.gen_model, "max_new_tokens": args.max_new_tokens}

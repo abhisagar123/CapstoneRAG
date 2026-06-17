@@ -1,0 +1,26 @@
+# Pooled Exp 11 (CustomerSupport-targeted stack): does the RERANKER rescue the adherence that
+# CustomerSupport's best-coverage config traded away? `pgc_complete` (Exp 8) is CustomerSupport's
+# best completeness (0.351) but its adherence dropped to 0.440 ("be thorough" over many fine PGC
+# chunks pulls in more than the 3B grounds reliably). The reranker-rescue is proven on top3 (+0.11
+# adherence); this tests whether re-scoring the PGC chunks and keeping the best top-5 recovers
+# grounding without losing the coverage. ONE change off grounded_pooled_pgc_complete.yaml:
+# reranker none -> cross_encoder (top_n stays 5).
+#
+# DISTINCT config_id (reranker TYPE changes none -> cross_encoder) -> safe to share the pooled CSV,
+# but run into its OWN --out for parallelism alongside the GenK stack.
+# Run: --configs grounded_pooled_pgc_complete_rerank --out ..._pgc_complete_rerank.csv
+domain: Legal
+
+chunker:   { type: pgc, paragraphs: 2, overlap: 1 }    # CustomerSupport's retrieval-side winner (Exp 7)
+embedder:  { type: minilm }
+index:     { type: faiss, corpus_mode: pooled }
+
+retriever: { type: dense, k: 20 }
+reranker:  { type: cross_encoder, top_n: 5 }           # vs grounded_pooled_pgc_complete (was none)
+repacker:  { type: reverse }
+prompt:    { type: grounded_complete }
+generator: { type: ollama, model: llama3.2:3b, max_new_tokens: 256 }   # overridden by --gen-model
+
+splitter:  { type: regex }
+
+seed: 42

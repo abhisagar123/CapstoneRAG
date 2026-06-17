@@ -1,0 +1,29 @@
+# Pooled chunking experiment: SEMANTIC chunking — cut where MEANING shifts.
+# ONE change off grounded_pooled_norerank.yaml: chunker fixed -> semantic. Where fixed cuts every
+# 512 words (blind to content) and pgc cuts on blank lines (structure, not meaning), the semantic
+# chunker embeds each sentence and cuts where neighbour similarity drops — so a chunk holds one
+# topic. Hypothesis (same as PGC's pooled win): coherent chunks raise the relevant-FRACTION
+# (= relevant-sentences / total-retrieved-sentences), which is our pooled bottleneck.
+#
+# breakpoint knob (config-switchable, an ablation in itself):
+#   percentile: cut at the biggest similarity DROPS within each doc (self-calibrating, robust).
+#               `percentile: 95` = LangChain's default but COARSE (few, large chunks); LOWER it
+#               (e.g. 80-90) for smaller, more-coherent chunks — the granularity that helped CustSupport.
+#   absolute:   cut wherever cosine sim < `threshold` (e.g. 0.5). Simpler but the right number drifts.
+# NOTE: distinct config_id (chunker TYPE changes fixed->semantic) — safe to share the pooled CSV,
+# but run it into its own --out for parallelism alongside the other chunking experiments.
+domain: Legal
+
+chunker:   { type: semantic, breakpoint: percentile, percentile: 90 }   # was: fixed 512/50
+embedder:  { type: minilm }
+index:     { type: faiss, corpus_mode: pooled }
+
+retriever: { type: dense, k: 20 }
+reranker:  { type: none, top_n: 5 }
+repacker:  { type: reverse }
+prompt:    { type: grounded }
+generator: { type: ollama, model: llama3.1:8b, max_new_tokens: 256 }   # overridden by --gen-model
+
+splitter:  { type: regex }
+
+seed: 42

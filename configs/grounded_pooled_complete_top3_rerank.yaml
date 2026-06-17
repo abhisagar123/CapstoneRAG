@@ -1,0 +1,28 @@
+# Pooled Exp 11 (GenKnowledge-targeted stack): does the RERANKER rescue the adherence that
+# our best-coverage config traded away? `complete_top3` (Exp 5B) is GenKnowledge's project-best
+# completeness (0.655) but its adherence is only 0.540. The rescue mechanism is already PROVEN once:
+# plain top3 adh 0.408 -> top3_rerank 0.520 (+0.11) — reranking the kept-3 chunks made them better-
+# grounded. This stacks that rescue onto the WINNING prompt: grounded_complete + cross_encoder@top3.
+# ONE change off grounded_pooled_complete_top3.yaml: reranker none -> cross_encoder (top_n stays 3).
+#
+# ⚠️ SHARES config_id with grounded_pooled_complete_rerank.yaml (both are
+# fixed|minilm|faiss|dense|cross_encoder|reverse|grounded_complete|ollama — they differ ONLY in the
+# reranker top_n PARAM, 3 vs 5). config_id is built from stage TYPES, so build_grid's collision guard
+# treats them as the same row -> run this into its OWN --out CSV with a --configs filter, same rule as
+# the Exp 7 size sweep and Exp 10 semantic sweep.
+# Run: --configs grounded_pooled_complete_top3_rerank --out ..._complete_top3_rerank.csv
+domain: Legal
+
+chunker:   { type: fixed, size: 512, overlap: 50 }
+embedder:  { type: minilm }
+index:     { type: faiss, corpus_mode: pooled }
+
+retriever: { type: dense, k: 20 }
+reranker:  { type: cross_encoder, top_n: 3 }          # vs grounded_pooled_complete_top3 (was none)
+repacker:  { type: reverse }
+prompt:    { type: grounded_complete }
+generator: { type: ollama, model: llama3.2:3b, max_new_tokens: 256 }   # overridden by --gen-model
+
+splitter:  { type: regex }
+
+seed: 42

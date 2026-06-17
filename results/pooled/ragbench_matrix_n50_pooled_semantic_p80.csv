@@ -1,0 +1,3 @@
+config_name,config_id,domain,chunker,embedder,index,retriever,reranker,repacker,prompt,generator,n,n_scored,relevance,utilization,completeness,adherence,scoring
+grounded_pooled_semantic_p80.yaml,semantic|minilm|faiss|dense|none|reverse|grounded|ollama,GenKnowledge,semantic,minilm,faiss,dense,none,reverse,grounded,ollama,50,50,0.3933219561058436,0.15712181663652253,0.36893406593406597,0.48,done
+grounded_pooled_semantic_p80.yaml,semantic|minilm|faiss|dense|none|reverse|grounded|ollama,CustomerSupport,semantic,minilm,faiss,dense,none,reverse,grounded,ollama,50,50,0.31572542373483736,0.13433092626279636,0.25651282051282054,0.48,done

@@ -10,7 +10,10 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import src  # noqa: F401 — triggers component registration via src/__init__.py
 from src.registry import build, available, register, REGISTRY
-from src.chunking import Chunk, Chunker, FixedChunker, NoOpChunker, ParagraphGroupChunker
+from src.chunking import Chunk, Chunker, FixedChunker, NoOpChunker, ParagraphGroupChunker, load_chunkers
+from src.chunking.semantic_chunker import SemanticChunker
+
+WANT_MODEL = os.environ.get("MODEL") == "1"
 
 
 def test_components_registered_on_import():
@@ -18,6 +21,12 @@ def test_components_registered_on_import():
     assert "fixed" in available("chunker")
     assert "none" in available("chunker")
     assert "pgc" in available("chunker")
+
+
+def test_heavy_chunkers_not_registered_until_loaded():
+    # Mirror of the embedder rule: the HEAVY chunkers must register only via
+    # load_chunkers(), never on bare `import src` (keeps import torch-free).
+    assert callable(load_chunkers)
 
 
 def test_pgc_groups_adjacent_paragraphs():
@@ -151,11 +160,98 @@ def test_registry_rejects_duplicate_name():
         pass
 
 
+# ---------------- SemanticChunker: pure logic (no model, no torch) ----------------
+# _cut_after and _group are pure functions of the similarity scores, so the whole
+# boundary-decision logic is testable offline — the embedder (the only heavy part)
+# just produces the `sims` list those functions consume.
+
+def test_semantic_invalid_params_rejected():
+    for bad in [dict(breakpoint="nonsense"), dict(percentile=0), dict(percentile=100),
+                dict(threshold=-0.1), dict(threshold=1.1)]:
+        try:
+            SemanticChunker(**bad)
+            assert False, f"expected ValueError for {bad}"
+        except ValueError:
+            pass
+
+
+def test_semantic_absolute_cuts_below_threshold():
+    # sims between 4 sentences: high, LOW (topic shift), high.
+    sc = SemanticChunker(breakpoint="absolute", threshold=0.5)
+    cut = sc._cut_after([0.8, 0.1, 0.7])      # only index 1 (sim 0.1) is below 0.5
+    assert cut == {1}
+    pieces = sc._group(["s0", "s1", "s2", "s3"], cut)
+    assert pieces == ["s0 s1", "s2 s3"]        # cut AFTER sentence 1
+
+
+def test_semantic_percentile_cuts_largest_drop():
+    # distances = 1 - sim = [0.1, 0.9, 0.2]; the 95th-percentile distance is ~0.83,
+    # so only the big gap (0.9, index 1) exceeds it → exactly one cut, the sharpest shift.
+    sc = SemanticChunker(breakpoint="percentile", percentile=95)
+    cut = sc._cut_after([0.9, 0.1, 0.8])
+    assert cut == {1}
+
+
+def test_semantic_uniform_doc_stays_one_chunk():
+    # A perfectly coherent document (all neighbour sims equal) has no gap exceeding
+    # the percentile → NO cut → the strict ">" keeps it as a single chunk.
+    sc = SemanticChunker(breakpoint="percentile", percentile=95)
+    assert sc._cut_after([0.7, 0.7, 0.7, 0.7]) == set()
+    assert sc._group(["a", "b", "c"], set()) == ["a b c"]
+
+
+def test_semantic_empty_sims():
+    assert SemanticChunker()._cut_after([]) == set()
+
+
+def test_semantic_registered_only_after_load():
+    load_chunkers()
+    assert "semantic" in available("chunker")
+
+
+# ---------------- SemanticChunker: end-to-end with the real model (MODEL=1) ----------------
+
+def test_semantic_splits_topic_shift_end_to_end():
+    load_chunkers()
+    sc = build("chunker", "semantic", {"breakpoint": "absolute", "threshold": 0.4})
+    # Two clearly different topics; the chunker should NOT lump them into one chunk.
+    doc = ("The cat sat on the warm mat. It purred softly in the afternoon sun. "
+           "Quarterly revenue rose twelve percent. Operating costs fell sharply.")
+    chunks = sc.chunk([doc])
+    assert all(isinstance(c, Chunk) for c in chunks)
+    assert len(chunks) >= 2, "expected the cat/finance topic shift to force a cut"
+    assert [c.chunk_id for c in chunks][:2] == ["0-0", "0-1"]
+    joined = " ".join(c.text for c in chunks)
+    assert "cat" in joined and "revenue" in joined          # no text lost
+
+
+def test_semantic_empty_and_single_sentence():
+    load_chunkers()
+    sc = build("chunker", "semantic")
+    assert sc.chunk(["", "   "]) == []                       # empty docs skipped
+    one = sc.chunk(["Just one solitary sentence here."])     # nothing to compare
+    assert len(one) == 1 and one[0].chunk_id == "0-0"
+
+
 def _run():
-    fns = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
-    for fn in fns:
+    model_tests = {"test_semantic_splits_topic_shift_end_to_end",
+                   "test_semantic_empty_and_single_sentence"}
+    all_fns = [(k, v) for k, v in sorted(globals().items())
+               if k.startswith("test_") and callable(v)]
+    offline = [v for k, v in all_fns if k not in model_tests]
+    model = [v for k, v in all_fns if k in model_tests]
+
+    for fn in offline:
         fn(); print(f"  ✅ {fn.__name__}")
-    print(f"\n{len(fns)}/{len(fns)} chunking checks passed.")
+    print(f"\n{len(offline)} offline chunking checks passed.")
+
+    if WANT_MODEL:
+        print("\nrunning model checks (MODEL=1; may download ~90MB)...")
+        for fn in model:
+            fn(); print(f"  ✅ {fn.__name__}")
+        print(f"{len(model)} model checks passed.")
+    else:
+        print("(skipped semantic model checks — set MODEL=1 to run them)")
 
 
 if __name__ == "__main__":
