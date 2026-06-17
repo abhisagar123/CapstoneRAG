@@ -30,6 +30,7 @@ from . import chunking   # noqa: F401  — registers FixedChunker, NoOpChunker
 from . import indexing    # noqa: F401  — registers FaissIndex (faiss import is lazy)
 from . import retrieval   # noqa: F401  — registers DenseRetriever
 from . import repacking   # noqa: F401  — registers forward / reverse / sides (pure Python)
+from . import summarization  # noqa: F401  — registers none / lexical; extractive_embedding gated behind load_summarizers()
 from . import reranking    # noqa: F401  — registers NoOpReranker; CrossEncoder gated behind load_rerankers()
 from . import prompting    # noqa: F401  — registers grounded / minimal prompt builders (pure Python)
 from . import generation   # noqa: F401  — registers EchoGenerator; HuggingFaceGenerator gated behind load_generators()

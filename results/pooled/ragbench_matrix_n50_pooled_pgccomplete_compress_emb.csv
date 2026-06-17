@@ -1,0 +1,2 @@
+config_name,config_id,domain,chunker,embedder,index,retriever,reranker,repacker,summarizer,prompt,generator,n,n_scored,relevance,utilization,completeness,adherence,scoring
+grounded_pooled_pgccomplete_compress_emb.yaml,pgc|minilm|faiss|dense|none|reverse|extractive_embedding|grounded_complete|ollama,CustomerSupport,pgc,minilm,faiss,dense,none,reverse,extractive_embedding,grounded_complete,ollama,50,50,0.5159619663745847,0.4090908311234521,0.5548095238095239,0.44,done

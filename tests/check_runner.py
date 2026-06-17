@@ -60,7 +60,9 @@ SEG = OutputSegmenter(RegexSplitter())
 
 def test_config_id_is_stable_and_descriptive():
     cid = config_id(from_dict(BASE))
-    assert cid == "fixed|fake|faiss|dense|none|reverse|grounded|echo"
+    # position 7 (between repacker and prompt) is the summarizer slot — "none" here
+    # since BASE has no summarizer stage.
+    assert cid == "fixed|fake|faiss|dense|none|reverse|none|grounded|echo"
 
 
 def test_mean_counts_booleans_as_rate():

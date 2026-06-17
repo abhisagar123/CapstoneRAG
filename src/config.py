@@ -29,6 +29,7 @@ REQUIRED_STAGES = {
 OPTIONAL_STAGES = {            # may be null/absent → that stage is skipped/needs care
     "reranker": "reranker",
     "repacker": "repacker",
+    "summarizer": "summarizer",   # context compression (trim chunks to query-relevant sentences); None → skip
 }
 
 
@@ -50,6 +51,7 @@ class PipelineConfig:
     splitter: StageConfig
     reranker: StageConfig | None = None
     repacker: StageConfig | None = None
+    summarizer: StageConfig | None = None
     seed: int = 42
 
 

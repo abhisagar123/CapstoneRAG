@@ -747,6 +747,132 @@ closes the CustomerSupport gap and, by *not* closing GenKnowledge, sharpens that
 elsewhere (short docs, already-near-reference relevance — see per-example track). Optional follow-ups:
 gemma2:9b as a 2nd big model (confirm CustSupport, retest GenK); an answer-text probe to settle F3.
 
+## Pooled Exp 13 — Extractive prompt (quote, don't rephrase): REJECTED — no adherence gain, and it costs coverage
+
+**Question:** every prior lever leaves the **adherence** gap (faithfulness) untouched, and Exp 12 showed a
+bigger generator fixes it on CustomerSupport but NOT GenKnowledge — so on GenKnowledge the unexplored axis is
+a *grounding-side prompt* that needs no extra capacity. The `extractive` prompt attacks adherence from a
+different angle than `grounded_complete`: instead of "be thorough" (which traded adherence for completeness,
+Exp 4), it says *"quote or closely paraphrase the context's own sentences — do NOT rephrase in your own
+words."* **Hypothesis:** killing free-rephrasing removes the unsupported-wording failure mode → adherence up,
+especially on GenKnowledge. One-change swap (prompt `grounded` → `extractive`) off the Exp 1 pooled baseline,
+3B generator, same retrieval/seed, N=50. Source: `..._extractive.csv`. GenK 49/50 scored (one skip), CustS 50/50.
+
+### vs the Exp 1 pooled baseline (grounded @ 3B — same retrieval, ONLY the prompt changed)
+
+**GenKnowledge:**
+
+| metric | baseline `grounded` | `extractive` | Δ |
+|---|---|---|---|
+| relevance | 0.304 | 0.304 | 0.000 |
+| utilization | 0.128 | 0.105 | −0.023 |
+| completeness | 0.363 | 0.302 | −0.061 |
+| **adherence** | **0.540** | **0.490** | **−0.050** |
+
+**CustomerSupport:**
+
+| metric | baseline `grounded` | `extractive` | Δ |
+|---|---|---|---|
+| relevance | 0.205 | 0.245 | +0.040 |
+| utilization | 0.069 | 0.040 | −0.029 |
+| completeness | 0.121 | 0.104 | −0.017 |
+| **adherence** | **0.500** | **0.540** | **+0.040** |
+
+### Findings + reasoning
+
+**F1 — the hypothesis is REJECTED: adherence did not rise.** The metric the prompt was built to lift went the
+WRONG way on its target domain (GenK −0.050) and rose only at the noise edge on the other (CustS +0.040). At
+N=50 each scored answer ≈ 0.020 and the noise band is ±0.02–0.04, so −0.050 ≈ 2–3 answers and +0.040 = 2
+answers — and the two domains move in OPPOSITE directions by ~2 answers each, the classic signature of noise,
+not a real effect (the same logic that killed the Exp 9 F4 mxbai "adherence +0.10"). Net read: **adherence is
+flat; the extractive steer does not reduce the unsupported-sentence rate.**
+
+**F2 — the one CONSISTENT effect is negative: extractive makes answers terser → less coverage.** Utilization
+fell in BOTH domains (−0.023 / −0.029) and completeness fell in both (−0.061 GenK / −0.017 CustS) — a
+direction-consistent-across-domains move (unlike the see-sawing adherence), so it is the trustworthy signal.
+*Reasoning:* told to "quote, don't rephrase," the 3B answers with a narrow snippet or two instead of
+synthesizing across the relevant set, so it uses less of the context (util ↓) and covers less of the relevant
+set (completeness ↓). The extractive steer changed answer STYLE (terser), not GROUNDING rate (adherence flat).
+
+**F3 — why it failed: the grounding clause was already there.** Plain `grounded` already carries the strict
+grounding + refusal clause; the ONLY delta is "quote / don't rephrase." That delta shortens answers but does
+not change whether the judge marks sentences supported. So the adherence gap is NOT caused by "free-rephrasing
+drift" as the hypothesis assumed — it's the small generator's grounding CAPACITY itself (consistent with
+Exp 11 F3 / Exp 12: capacity is the CustomerSupport lever).
+
+**Bottom line — lever REJECTED, per-domain bests UNCHANGED** (GenK `complete_top3` 3B compl 0.655 caveated;
+CustS `pgc_complete` @ 8B adh 0.600 / compl 0.473). Importantly this CLOSES the grounding-side-prompt axis on
+GenKnowledge: capacity didn't help it (Exp 12) and now a grounding-focused prompt didn't either → GenKnowledge's
+ceiling is set on the retrieval/data side (short, already-near-reference docs — per-example track), not by any
+generation-side knob. Per the pre-registered gate ("proceed to extractive @ 8B ONLY if adherence moves at 3B"),
+we do NOT pursue extractive @ 8B — there is no 3B signal to amplify.
+
+## Pooled Exp 14 — Context compression (Recomp extractive): REJECTED as a lever, but it surfaces the project's FIRST embedding-component win
+
+**Question:** the "Best Practices" paper's recommended recipe (§5.1) includes a **Summarization/Recomp**
+stage we had never built — compress retrieved context before generation. Exp 1 showed our top-5 is only
+~58% relevant text; the small/over-reaching generator wades through that padding and grounds poorly
+(adherence gap, Exp 11/12). **Hypothesis: trim each chunk to its query-relevant sentences (keeping ≥1 per
+chunk, so unlike top_n=3 no chunk's facts are lost) → less noise to over-reach on → adherence up.** Built a
+`summarization` brick with three arms (none / lexical = word-overlap, no model / extractive_embedding =
+cosine(query, sentence)) and added it as the `[summarize]` stage (retrieve→rerank→repack→**summarize**→prompt).
+Tested per-domain (per the per-domain-tuning decision) on each domain's WINNER, one-change swaps. N=50.
+Sources: `..._ctop3_compress_emb.csv` (GenK, 49/50), `..._ctop3_compress_lex.csv` (GenK control, 50/50),
+`..._pgccomplete_compress_emb.csv` (CustSupport, 50/50).
+
+### vs each domain's winner (only the summarizer stage added)
+
+**GenKnowledge** — `complete_top3` @ 3B + compression:
+
+| metric | winner | + emb (cosine) | + lex (word-overlap) |
+|---|---|---|---|
+| relevance | 0.402 | 0.561 | 0.596 |
+| utilization | 0.313 | 0.379 | 0.375 |
+| completeness | 0.655 | 0.579 | 0.504 |
+| **adherence** | **0.540** | **0.531** (−0.009, flat) | **0.380** (−0.160) |
+
+**CustomerSupport** — `pgc_complete` @ 8B + emb compression:
+
+| metric | winner | + emb (cosine) | Δ |
+|---|---|---|---|
+| relevance | 0.351 | 0.516 | +0.165 |
+| utilization | 0.248 | 0.409 | +0.161 |
+| completeness | 0.473 | 0.555 | +0.082 |
+| **adherence** | **0.600** | **0.440** | **−0.160** |
+
+### Findings + reasoning
+
+**F1 — REJECTED as a lever: compression does not lift adherence anywhere.** GenK emb = flat (−0.009 = noise);
+CustS emb = **crashed −0.160** (8 answers, far beyond the ±0.04 band) for only +0.082 completeness — a bad
+trade on our most-valued metric. Per-domain bests **UNCHANGED** (GenK `complete_top3` 0.655 compl; CustS
+`pgc_complete`@8B adh 0.600 / compl 0.473). The relevance jumps (+0.159 / +0.165) are largely the chunk-size
+DENOMINATOR ARTIFACT (Exp 10): keeping ~half the sentences ~halves total-retrieved-sentences → relevance ≈×1.4.
+Not new quality. Adherence (a grounding rate, not size-confounded) is the honest signal, and it says: no gain.
+
+**F2 — the project's FIRST embedding-component win: embedding compression ≫ lexical (adherence 0.531 vs 0.380).**
+The model-free control (lexical = keep sentences sharing query WORDS) **actively wrecked adherence** (0.540 →
+0.380), while the embedding arm (keep sentences by MEANING) stayed neutral (0.531). *Why:* a supporting
+sentence often PARAPHRASES the question rather than repeating its words — lexical drops it and keeps
+keyword-matching distractors, so the model can't ground; cosine keeps the real support. Every prior embedding
+lever was NULL (BGE, mxbai) — but those were *retrieval*, where our recall was already saturated (Exp 1). In
+*sentence selection* meaning genuinely beats keywords. **Report reframing: embeddings matter for SELECTING
+text, not for RETRIEVING documents** — sharpens the whole embedder-null story rather than contradicting it.
+
+**F3 — CustS is the THIRD confirmation of the grounded_complete over-reach mechanism.** Under
+`grounded_complete` ("use every relevant detail") the model writes a thorough answer; SHRINK the context it can
+draw on (compression) and some of those sentences become unsupported → adherence falls. The reranker did the
+identical thing (Exp 11 F3); compression now repeats it. Consistent rule: **under the coverage prompt the
+bottleneck is the generator's capacity to ground a thorough answer — anything that reduces/reshuffles available
+context makes the over-reach worse, it cannot help.** (The symmetric prediction — compression should HELP under
+PLAIN `grounded`, where the model answers narrowly — is the one motivated follow-up, untested here.)
+
+**Bottom line — paper's last unbuilt stage is built + swept; it is not our lever.** Compression trades adherence
+for coverage/relevance like top3/PGC/semantic before it, and joins that pile. Its lasting value is F2 (embedding
+selection beats lexical — our first embedding win) and F3 (over-reach mechanism, triple-confirmed). With every
+stage of the paper's recommended pipeline now tested, the only lever that closes the faithfulness gap remains
+**generator capacity, and only where the domain supports it** (CustS, Exp 12). The summarization brick (none /
+lexical / extractive_embedding) is reusable for the demo + report.
+
 ---
 
 *Data sources: `results/pooled/ragbench_matrix_n50_pooled.csv` (Exp 1–3),
@@ -757,4 +883,6 @@ gemma2:9b as a 2nd big model (confirm CustSupport, retest GenK); an answer-text 
 `..._semantic_p90.csv` + `..._semantic_p80.csv` + `..._semantic_abs.csv` (Exp 10),
 `..._complete_top3_rerank.csv` + `..._pgc_complete_rerank.csv` (Exp 11),
 `..._complete_top3_llama8b.csv` + `..._pgc_complete_llama8b.csv` (Exp 12),
+`..._extractive.csv` (Exp 13),
+`..._ctop3_compress_emb.csv` + `..._ctop3_compress_lex.csv` + `..._pgccomplete_compress_emb.csv` (Exp 14),
 `results/pooled/figures/` (charts). Per-example track + reference comparison live in `EXPERIMENTS.md`.*

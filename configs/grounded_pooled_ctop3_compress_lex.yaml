@@ -1,0 +1,23 @@
+# Pooled Exp 14 CONTROL — the model-free compressor on the same GenKnowledge winner.
+# ONE change vs grounded_pooled_ctop3_compress_emb.yaml: summarizer type
+# extractive_embedding -> lexical (word-overlap scoring instead of cosine). Same
+# select-top-half-of-sentences mechanism, so this isolates "does SEMANTIC scoring beat
+# word overlap?" — the cheap baseline (same discipline as the BGE/mxbai embedder nulls:
+# prove the heavy component is worth it before crediting it). If lexical matches the
+# embedding arm, the sentence-embedding step buys nothing.
+domain: Legal
+
+chunker:    { type: fixed, size: 512, overlap: 50 }
+embedder:   { type: minilm }
+index:      { type: faiss, corpus_mode: pooled }
+
+retriever:  { type: dense, k: 20 }
+reranker:   { type: none, top_n: 3 }
+repacker:   { type: reverse }
+summarizer: { type: lexical, ratio: 0.5 }                # vs _compress_emb (was extractive_embedding)
+prompt:     { type: grounded_complete }
+generator:  { type: ollama, model: llama3.2:3b, max_new_tokens: 256 }   # overridden by --gen-model
+
+splitter:   { type: regex }
+
+seed: 42

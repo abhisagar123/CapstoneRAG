@@ -1,0 +1,25 @@
+# Pooled prompt swap: grounded -> extractive. ONLY `prompt` differs from
+# grounded_pooled_norerank.yaml (one-variable), so any delta vs the Exp 1 pooled baseline
+# is attributable to the extractive steer alone.
+#
+# Hypothesis (Exp 13): adherence lags because the small generator, asked to answer "in its
+# own words", drifts into unsupported phrasing the judge flags. The extractive prompt tells
+# it to QUOTE / closely paraphrase the context's own sentences instead of rephrasing — a
+# DIFFERENT attack on adherence than grounded_complete (which says "be thorough" and traded
+# adherence for completeness). Aimed squarely at GenKnowledge, where capacity (8B) did NOT
+# help, so a grounding-side prompt is the unexplored axis.
+domain: Legal
+
+chunker:   { type: fixed, size: 512, overlap: 50 }
+embedder:  { type: minilm }
+index:     { type: faiss, corpus_mode: pooled }
+
+retriever: { type: dense, k: 20 }
+reranker:  { type: none, top_n: 5 }
+repacker:  { type: reverse }
+prompt:    { type: extractive }                       # was: grounded
+generator: { type: ollama, model: llama3.1:8b, max_new_tokens: 256 }   # overridden by --gen-model
+
+splitter:  { type: regex }
+
+seed: 42
