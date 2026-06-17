@@ -1,0 +1,27 @@
+# Pooled Exp 14 — context COMPRESSION on the CustomerSupport winner.
+# ONE change off grounded_pooled_pgc_complete.yaml: add a `summarizer` stage
+# (extractive_embedding). Everything else identical — clean one-variable swap.
+#
+# pgc_complete @ 8B is already CustomerSupport's best (adh 0.600 / compl 0.473, Exp 12):
+# PGC gives coherent chunks, grounded_complete uses them fully, the 8B grounds them. Can
+# compression STACK on top? Compression acts on a DIFFERENT stage (between repack and
+# prompt) than chunking/prompt/generator — and orthogonal stages stacked before (PGC +
+# complete, Exp 8) while overlapping ones only averaged (rerank + complete, Exp 5A). So
+# trimming each PGC chunk to its query-relevant sentences could lift adherence/util further
+# without disturbing the stack. Runs @ 8B (CustS's winning generator); --gen-model overrides.
+domain: Legal
+
+chunker:    { type: pgc, paragraphs: 2, overlap: 1 }
+embedder:   { type: minilm }
+index:      { type: faiss, corpus_mode: pooled }
+
+retriever:  { type: dense, k: 20 }
+reranker:   { type: none, top_n: 5 }
+repacker:   { type: reverse }
+summarizer: { type: extractive_embedding, ratio: 0.5 }   # NEW stage — keep the query-relevant half of each chunk's sentences
+prompt:     { type: grounded_complete }
+generator:  { type: ollama, model: llama3.1:8b, max_new_tokens: 256 }   # CustS best is 8B; overridden by --gen-model
+
+splitter:   { type: regex }
+
+seed: 42

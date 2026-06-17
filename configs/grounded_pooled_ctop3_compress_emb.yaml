@@ -1,0 +1,29 @@
+# Pooled Exp 14 — context COMPRESSION on the GenKnowledge winner.
+# ONE change off grounded_pooled_complete_top3.yaml: add a `summarizer` stage
+# (extractive_embedding). Everything else identical, so any delta is the compression alone.
+#
+# Hypothesis: complete_top3 feeds 3 fixed-512 chunks to the generator, but only ~58% of
+# retrieved text is relevant (Exp 1). The grounded_complete prompt ("use every relevant
+# detail") then makes the small generator over-reach across that padding → the adherence
+# gap (Exp 11/12). Compression keeps every chunk but trims each to its query-most-relevant
+# sentences (cosine to the query) BEFORE the generator sees it → less noise to over-reach
+# on. Unlike top_n=3 (Exp 2, which dropped whole chunks and lost facts → adherence fell),
+# this drops sentences while keeping >=1 per chunk, so no chunk's facts vanish.
+# Watch ADHERENCE (the gap; not confounded by context size). GenK winner runs @ 3B (the
+# 8B did NOT help GenK, Exp 12) — so this tests an axis capacity couldn't fix.
+domain: Legal
+
+chunker:    { type: fixed, size: 512, overlap: 50 }
+embedder:   { type: minilm }
+index:      { type: faiss, corpus_mode: pooled }
+
+retriever:  { type: dense, k: 20 }
+reranker:   { type: none, top_n: 3 }
+repacker:   { type: reverse }
+summarizer: { type: extractive_embedding, ratio: 0.5 }   # NEW stage — keep the query-relevant half of each chunk's sentences
+prompt:     { type: grounded_complete }
+generator:  { type: ollama, model: llama3.2:3b, max_new_tokens: 256 }   # GenK best is 3B; overridden by --gen-model
+
+splitter:   { type: regex }
+
+seed: 42

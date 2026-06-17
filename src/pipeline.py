@@ -6,7 +6,7 @@ in order. Two phases, mirroring real RAG:
 
   index_documents(docs)  OFFLINE (once): chunk -> embed -> index
   answer(query)          ONLINE (per question):
-                         retrieve -> rerank -> repack -> prompt -> generate
+                         retrieve -> rerank -> repack -> [summarize] -> prompt -> generate
 
 It returns {answer, sources, context} and STOPS there — segmenting + judging +
 TRACe scoring is the ExperimentRunner's job (clean separation; the judge is
@@ -18,7 +18,7 @@ Assembly notes (why this isn't just "build each stage from config"):
     we construct it directly rather than via a config `type` alone.
   - k (retriever) and top_n (reranker) are RUNTIME args to retrieve()/rerank(),
     not constructor params — we read them from the config's params here.
-  - Optional stages (reranker/repacker) may be None in the config → skipped.
+  - Optional stages (reranker/repacker/summarizer) may be None in the config → skipped.
 """
 
 from .registry import build
@@ -57,6 +57,8 @@ class Pipeline:
         # Optional stages → None means "skip this stage".
         self.reranker = build("reranker", c.reranker.type, reranker_ctor_params) if c.reranker else None
         self.repacker = build("repacker", c.repacker.type, c.repacker.params) if c.repacker else None
+        summarizer_cfg = getattr(c, "summarizer", None)
+        self.summarizer = build("summarizer", summarizer_cfg.type, summarizer_cfg.params) if summarizer_cfg else None
 
         # Retriever is config-driven. It wraps the built embedder + index (it's NOT a
         # bare registry build() like other stages, because it needs those objects), so a
@@ -124,6 +126,13 @@ class Pipeline:
         # 3. reorder for the prompt (or skip → keep order)
         if self.repacker is not None:
             chunks = self.repacker.pack(chunks)
+
+        # 3.5 compress: trim each chunk to its query-relevant sentences (or skip).
+        # Runs AFTER repack so ordering is settled; it only shortens texts, never
+        # reorders or drops chunks. Downstream `context` reflects the compressed text,
+        # so TRACe is scored on exactly what the generator saw.
+        if self.summarizer is not None:
+            chunks = self.summarizer.compress(query, chunks)
 
         # 4. build the prompt, 5. generate
         prompt = self.prompt_builder.build(query, chunks)

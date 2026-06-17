@@ -31,10 +31,12 @@ from .judge.base import scores_from_label
 
 def config_id(cfg) -> str:
     """A short stable identifier for a config — the stage types joined.
-    e.g. 'fixed|minilm|faiss|dense|cross_encoder|reverse|grounded|hf'."""
+    e.g. 'fixed|minilm|faiss|dense|cross_encoder|reverse|none|grounded|hf'.
+    (Position 7 is the summarizer; 'none' when no compression stage.)"""
     parts = [cfg.chunker.type, cfg.embedder.type, cfg.index.type, cfg.retriever.type,
              cfg.reranker.type if cfg.reranker else "none",
              cfg.repacker.type if cfg.repacker else "none",
+             getattr(cfg, "summarizer", None).type if getattr(cfg, "summarizer", None) else "none",
              cfg.prompt.type, cfg.generator.type]
     return "|".join(parts)
 
@@ -138,6 +140,7 @@ def run_experiment(cfg, examples, *, segmenter: OutputSegmenter, judge=None,
         "index": cfg.index.type, "retriever": cfg.retriever.type,
         "reranker": cfg.reranker.type if cfg.reranker else "none",
         "repacker": cfg.repacker.type if cfg.repacker else "none",
+        "summarizer": getattr(cfg, "summarizer", None).type if getattr(cfg, "summarizer", None) else "none",
         "prompt": cfg.prompt.type, "generator": cfg.generator.type,
         "n": n, "n_scored": n_scored,
         "relevance": _mean(score_lists["relevance"]),
@@ -149,7 +152,7 @@ def run_experiment(cfg, examples, *, segmenter: OutputSegmenter, judge=None,
 
 
 FIELDNAMES = ["config_id", "domain", "chunker", "embedder", "index", "retriever",
-              "reranker", "repacker", "prompt", "generator", "n", "n_scored",
+              "reranker", "repacker", "summarizer", "prompt", "generator", "n", "n_scored",
               "relevance", "utilization", "completeness", "adherence", "scoring"]
 
 
