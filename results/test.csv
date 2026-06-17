@@ -1,0 +1,2 @@
+config_name,config_id,domain,chunker,embedder,index,retriever,reranker,repacker,prompt,generator,n,n_scored,relevance,utilization,completeness,adherence,relevant_count,total_sentences,utilized_count,overlap_count,unsupported_count,scoring
+grounded_pooled_complete_rerank_llama3_2.yaml,fixed|minilm|faiss|dense|cross_encoder|reverse|grounded_complete|ollama,Biomedical,fixed,minilm,faiss,dense,cross_encoder,reverse,grounded_complete,ollama,5,5,0.6327260179434092,0.24723257418909594,0.3557692307692307,0.8,9.8,15.4,2.6,2.4,0.4,done
