@@ -57,6 +57,11 @@ def test_load_generators_registers_ollama():
     assert "ollama" in available("generator")          # local-server backend
 
 
+def test_load_generators_registers_groq():
+    load_generators()
+    assert "groq" in available("generator")            # hosted-API backend
+
+
 def test_ollama_generator_posts_and_parses(monkeypatch=None):
     # OFFLINE: mock httpx.post so we verify the request + response handling with NO server.
     import httpx
@@ -90,6 +95,100 @@ def test_ollama_generator_posts_and_parses(monkeypatch=None):
     assert captured["payload"]["options"]["num_ctx"] >= 8192    # avoid silent truncation
 
 
+def test_groq_generator_posts_chat_schema_and_parses():
+    # OFFLINE: mock httpx.post. Groq speaks the OpenAI CHAT schema, not Ollama's — verify
+    # we send messages[] (not a raw prompt) and parse choices[0].message.content.
+    import httpx
+    from src.generation.groq_generator import GroqGenerator, GROQ_URL
+
+    captured = {}
+
+    class _FakeResp:
+        status_code = 200
+        headers = {}
+        def raise_for_status(self): pass
+        def json(self):
+            return {"choices": [{"message": {"content": "Paris is the capital."},
+                                 "finish_reason": "stop"}]}
+
+    def _fake_post(url, headers=None, json=None, timeout=None):
+        captured["url"] = url
+        captured["headers"] = headers
+        captured["payload"] = json
+        return _FakeResp()
+
+    orig = httpx.post
+    httpx.post = _fake_post
+    try:
+        # api_key passed explicitly so the test never depends on the environment.
+        g = GroqGenerator(model="llama-3.3-70b-versatile", max_new_tokens=42,
+                          temperature=0.0, api_key="test-key")
+        out = g.generate("Question: capital of France?\nAnswer:")
+    finally:
+        httpx.post = orig                              # always restore
+
+    assert out == "Paris is the capital."              # parsed choices[0].message.content
+    assert captured["url"] == GROQ_URL                 # OpenAI-compatible chat endpoint
+    assert captured["headers"]["Authorization"] == "Bearer test-key"
+    assert captured["payload"]["model"] == "llama-3.3-70b-versatile"
+    assert captured["payload"]["messages"][0]["role"] == "user"   # prompt wrapped as a chat turn
+    assert captured["payload"]["messages"][0]["content"].startswith("Question:")
+    assert captured["payload"]["max_tokens"] == 42                # chat schema, NOT num_predict
+    assert captured["payload"]["temperature"] == 0.0
+    assert "prompt" not in captured["payload"]                    # NOT Ollama's prompt-string schema
+
+
+def test_groq_generator_requires_key_lazily():
+    # No key at construction is OK (offline config validation builds the object); the clear
+    # error fires only when generate() actually needs to hit the API.
+    from src.generation.groq_generator import GroqGenerator
+    g = GroqGenerator(api_key=None)                    # constructs fine, no env key needed
+    try:
+        g.generate("Question: anything?\nAnswer:")
+        assert False, "expected RuntimeError when GROQ_API_KEY is missing"
+    except RuntimeError as e:
+        assert "GROQ_API_KEY" in str(e)                # actionable message, not a KeyError
+
+
+def test_groq_generator_retries_on_429():
+    # OFFLINE: first call returns 429 (rate limited), second returns 200 — verify the
+    # back-off loop retries and ultimately parses the success. time.sleep is stubbed to 0.
+    import time
+    import httpx
+    from src.generation.groq_generator import GroqGenerator
+
+    calls = {"n": 0}
+
+    class _Resp429:
+        status_code = 429
+        headers = {"Retry-After": "0"}                 # honoured; 0 so the test is instant
+        def raise_for_status(self): raise AssertionError("429 should be retried, not raised")
+        def json(self): return {}
+
+    class _Resp200:
+        status_code = 200
+        headers = {}
+        def raise_for_status(self): pass
+        def json(self):
+            return {"choices": [{"message": {"content": "ok"}, "finish_reason": "stop"}]}
+
+    def _fake_post(url, headers=None, json=None, timeout=None):
+        calls["n"] += 1
+        return _Resp429() if calls["n"] == 1 else _Resp200()
+
+    orig_post, orig_sleep = httpx.post, time.sleep
+    httpx.post = _fake_post
+    time.sleep = lambda s: None                        # don't actually wait
+    try:
+        g = GroqGenerator(api_key="test-key", max_retries=3)
+        out = g.generate("Question: q?\nAnswer:")
+    finally:
+        httpx.post, time.sleep = orig_post, orig_sleep
+
+    assert out == "ok"
+    assert calls["n"] == 2                              # retried exactly once (429 -> 200)
+
+
 # ---------------- MODEL (real LLM — run on Colab) ----------------
 
 def test_hf_generator_produces_text():
@@ -108,7 +207,11 @@ def _run():
                test_build_echo_via_registry,
                test_load_generators_registers_hf,
                test_load_generators_registers_ollama,
-               test_ollama_generator_posts_and_parses]
+               test_load_generators_registers_groq,
+               test_ollama_generator_posts_and_parses,
+               test_groq_generator_posts_chat_schema_and_parses,
+               test_groq_generator_requires_key_lazily,
+               test_groq_generator_retries_on_429]
     model = [test_hf_generator_produces_text]
 
     for fn in offline:

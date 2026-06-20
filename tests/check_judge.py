@@ -210,6 +210,106 @@ def test_flatten_report_matches_sweep_cols():
     assert row["relevance_signed"] == 0.05 and row["adherence_over_flag"] == 1
 
 
+def test_load_judges_registers_groq():
+    load_judges()
+    assert "groq" in available("judge")                # hosted-API validation judge
+
+
+def test_groq_judge_posts_chat_schema_and_parses():
+    # OFFLINE: mock httpx.post. Groq speaks the OpenAI CHAT schema, not Ollama's — verify
+    # messages[] in, choices[0].message.content out, json_object mode, conservative steer.
+    import httpx
+    from src.judge import CONSERVATIVE_ADDENDUM
+    from src.judge.groq_judge import GroqJudge, GROQ_URL
+
+    captured = {}
+    label_json = ('{"all_relevant_sentence_keys": ["0a"], '
+                  '"all_utilized_sentence_keys": ["0a"], "overall_supported": true}')
+
+    class _FakeResp:
+        status_code = 200
+        headers = {}
+        def raise_for_status(self): pass
+        def json(self):
+            return {"choices": [{"message": {"content": label_json}, "finish_reason": "stop"}]}
+
+    def _fake_post(url, headers=None, json=None, timeout=None):
+        captured["url"] = url
+        captured["headers"] = headers
+        captured["payload"] = json
+        return _FakeResp()
+
+    orig = httpx.post
+    httpx.post = _fake_post
+    try:
+        j = GroqJudge(model="llama-3.3-70b-versatile", conservative=True, api_key="test-key")
+        out = j.label("What is the notice period?", KEYED)
+    finally:
+        httpx.post = orig
+
+    assert out["overall_supported"] is True            # parsed choices[0].message.content
+    assert out["all_relevant_sentence_keys"] == ["0a"]
+    assert captured["url"] == GROQ_URL
+    assert captured["headers"]["Authorization"] == "Bearer test-key"
+    assert captured["payload"]["model"] == "llama-3.3-70b-versatile"
+    msg = captured["payload"]["messages"][0]
+    assert msg["role"] == "user"
+    # verbatim Appendix-7.4 prompt + conservative steer both went into the chat message
+    assert msg["content"].startswith("I asked someone to answer")
+    assert CONSERVATIVE_ADDENDUM in msg["content"]
+    assert captured["payload"]["response_format"] == {"type": "json_object"}   # OpenAI json mode
+    assert captured["payload"]["temperature"] == 0.0                           # greedy first pass
+    assert "prompt" not in captured["payload"]                                 # NOT Ollama's schema
+    assert "num_ctx" not in captured["payload"]                                # Groq sizes ctx server-side
+
+
+def test_groq_judge_requires_key_lazily():
+    # No key at construction is fine (offline config validation builds the object); the
+    # clear error fires only when label() actually needs the API.
+    from src.judge.groq_judge import GroqJudge
+    j = GroqJudge(api_key=None)
+    try:
+        j.label("q?", KEYED)
+        assert False, "expected RuntimeError when GROQ_API_KEY is missing"
+    except RuntimeError as e:
+        assert "GROQ_API_KEY" in str(e)
+
+
+def test_groq_judge_retries_on_malformed_json_with_sampling():
+    # The judge's distinctive path: first completion is unparseable -> retry, and the
+    # retry must RAISE the temperature (sample) so the regeneration can differ.
+    import httpx
+    from src.judge.groq_judge import GroqJudge
+
+    temps, calls = [], {"n": 0}
+    good = ('{"all_relevant_sentence_keys": [], "all_utilized_sentence_keys": [], '
+            '"overall_supported": false}')
+
+    class _Resp:
+        status_code = 200
+        headers = {}
+        def __init__(self, body): self._body = body
+        def raise_for_status(self): pass
+        def json(self): return {"choices": [{"message": {"content": self._body}}]}
+
+    def _fake_post(url, headers=None, json=None, timeout=None):
+        calls["n"] += 1
+        temps.append(json["temperature"])
+        return _Resp("not json at all") if calls["n"] == 1 else _Resp(good)
+
+    orig = httpx.post
+    httpx.post = _fake_post
+    try:
+        j = GroqJudge(api_key="test-key", max_retries=1)
+        out = j.label("q?", KEYED)
+    finally:
+        httpx.post = orig
+
+    assert out["overall_supported"] is False
+    assert calls["n"] == 2                              # first failed, retried once
+    assert temps[0] == 0.0 and temps[1] > 0.0           # greedy first, sampled retry
+
+
 def test_ollama_judge_posts_and_parses():
     # OFFLINE: mock httpx.post so we exercise the judge with NO server. Confirms it
     # sends the Appendix-7.4 prompt (with conservative steer) and parses the JSON.
