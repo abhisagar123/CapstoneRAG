@@ -26,6 +26,7 @@ import os as _os
 _os.environ.setdefault("KMP_DUPLICATE_LIB_OK", "TRUE")
 _os.environ.setdefault("OMP_NUM_THREADS", "1")
 
+from . import query_classifier  # noqa: F401  — registers AlwaysRetrieveClassifier, HeuristicClassifier
 from . import chunking   # noqa: F401  — registers FixedChunker, NoOpChunker
 from . import indexing    # noqa: F401  — registers FaissIndex (faiss import is lazy)
 from . import retrieval   # noqa: F401  — registers DenseRetriever

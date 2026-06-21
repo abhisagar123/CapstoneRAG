@@ -85,7 +85,7 @@ def _dedup_docs(docs) -> list[str]:
 
 
 def run_experiment(cfg, examples, *, segmenter: OutputSegmenter, judge=None,
-                   corpus_docs=None) -> dict:
+                   corpus_docs=None, config_name: str | None = None) -> dict:
     """Run ONE config over a list of examples; return one aggregated result row.
 
     `examples`: RAGBench dicts (need 'question' and 'documents'). We ANSWER + SCORE
@@ -125,6 +125,7 @@ def run_experiment(cfg, examples, *, segmenter: OutputSegmenter, judge=None,
         out = pipe.answer(ex["question"])
         n += 1
 
+        s = None
         if judge is not None:
             ex_ctx = {**ex, "_context_texts": [rc.chunk.text for rc in out["sources"]]}
             s = _score_one(ex_ctx, out["answer"], segmenter, judge)
@@ -132,6 +133,19 @@ def run_experiment(cfg, examples, *, segmenter: OutputSegmenter, judge=None,
                 n_scored += 1
                 for k in score_lists:
                     score_lists[k].append(s[k])
+
+        # Per-example telemetry: one JSONL line per example with answer/sources/scores +
+        # current Groq cost snapshot. Best-effort — its own try/except inside telemetry.py
+        # swallows errors so a broken trace never crashes the experiment matrix.
+        if config_name is not None:
+            try:
+                from . import telemetry
+                telemetry.log_example(
+                    config_name=config_name, domain=cfg.domain,
+                    example_index=n - 1, ex=ex, out=out, scores=s,
+                )
+            except Exception:
+                pass
 
     return {
         "config_id": config_id(cfg),
@@ -256,7 +270,7 @@ def run_named_matrix(grid, examples_for, out_csv: str, *, segmenter=None, judge=
         corpus = corpus_for(cfg) if corpus_for is not None else None
         row = {"config_name": name,
                **run_experiment(cfg, examples_for(cfg), segmenter=segmenter, judge=judge,
-                                corpus_docs=corpus)}
+                                corpus_docs=corpus, config_name=name)}
         write_header = not os.path.exists(out_csv)
         with open(out_csv, "a", newline="") as f:          # re-open PER ROW (swap-safe)
             w = csv.DictWriter(f, fieldnames=NAMED_FIELDNAMES)

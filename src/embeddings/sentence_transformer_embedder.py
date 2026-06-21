@@ -19,6 +19,12 @@ from ..registry import register
 # A small, fast, CPU-friendly default (≈90 MB, 384-dim). Strong models like
 # BAAI/bge-base-en-v1.5 are selected by passing model=... in config.
 DEFAULT_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
+# gte-large: ≈670 MB, 1024-dim. Best open-source retrieval embedder on
+# LegalBench-RAG (Reuter et al. NLLP 2025 Appendix C, Figure 4): legal-domain
+# BERT models underperform because they are MLM/NSP-pretrained, not
+# contrastively tuned for retrieval. Alias "gte_large" pins this model so
+# Legal-domain configs can swap embedders without rewriting the model name.
+GTE_LARGE_MODEL = "thenlper/gte-large"
 
 
 @register("embedder", "sentence_transformer")
@@ -53,3 +59,18 @@ class SentenceTransformerEmbedder:
     @property
     def dim(self) -> int:
         return self._dim
+
+
+@register("embedder", "gte_large")
+class GteLargeEmbedder(SentenceTransformerEmbedder):
+    """Convenience alias: gte-large with the right default model name pinned.
+
+    Use as `{type: gte_large}` — no need to spell out the HuggingFace path in
+    every Legal-domain config. Subclass keeps the parent's lazy-import,
+    normalize, and dim behaviour identical.
+    """
+
+    def __init__(self, model: str = GTE_LARGE_MODEL, batch_size: int = 16,
+                 normalize: bool = True):
+        # gte-large is heavier than MiniLM, so default a smaller batch.
+        super().__init__(model=model, batch_size=batch_size, normalize=normalize)

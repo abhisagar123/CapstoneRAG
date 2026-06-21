@@ -30,6 +30,9 @@ OPTIONAL_STAGES = {            # may be null/absent → that stage is skipped/ne
     "reranker": "reranker",
     "repacker": "repacker",
     "summarizer": "summarizer",   # context compression (trim chunks to query-relevant sentences); None → skip
+    # query_classifier: PDF Stage 1. Optional so the existing configs (which don't declare it)
+    # load unchanged — absent => no classifier wired, pipeline always retrieves.
+    "query_classifier": "query_classifier",
 }
 
 
@@ -52,6 +55,7 @@ class PipelineConfig:
     reranker: StageConfig | None = None
     repacker: StageConfig | None = None
     summarizer: StageConfig | None = None
+    query_classifier: StageConfig | None = None
     seed: int = 42
 
 

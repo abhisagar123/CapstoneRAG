@@ -1,0 +1,16 @@
+# Phase A R1 — the published champion on LegalBench-RAG (Reuter et al. NLLP 2025).
+# SAC (500-char fixed + 150-char doc-summary prepended) + gte-large embedder +
+# dense-only retrieval, NO reranker. This is the upper-anchor for the slim
+# Phase A: all of R2/R3/R4 change ONE thing vs R1 to isolate that lever's delta.
+# Sources: aclanthology.org/2025.nllp-1.3 (Table 1, Appendix C).
+domain: Legal
+chunker:   { type: sac, size: 500, overlap: 0, summary_chars: 150 }
+embedder:  { type: gte_large }
+index:     { type: faiss, corpus_mode: per_example }
+retriever: { type: dense, k: 20 }
+reranker:  { type: none, top_n: 10 }
+repacker:  { type: forward }
+prompt:    { type: grounded_complete }
+generator: { type: ollama, model: llama3.1:8b, max_new_tokens: 256 }
+splitter:  { type: regex }
+seed: 42

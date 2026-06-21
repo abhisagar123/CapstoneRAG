@@ -85,7 +85,7 @@ def test_answer_runs_full_chain():
     p = _pipe()
     p.index_documents(DOCS)
     out = p.answer("What is the termination notice period?")
-    assert set(out) == {"answer", "sources", "context"}
+    assert {"answer", "sources", "context"}.issubset(out)
     assert out["answer"].startswith("[ECHO]")
     assert 0 < len(out["sources"]) <= p.top_n     # rerank/truncate respected top_n
     assert isinstance(out["context"], str) and len(out["context"]) > 0

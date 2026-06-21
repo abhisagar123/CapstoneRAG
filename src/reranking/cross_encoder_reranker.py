@@ -19,6 +19,12 @@ from ..indexing import RetrievedChunk
 
 # Small, fast, CPU-friendly reranker (~80MB). Strong models can be passed via model=.
 DEFAULT_MODEL = "cross-encoder/ms-marco-MiniLM-L-6-v2"
+# BGE-reranker-large: ~560 MB cross-encoder, used as a non-Cohere alternative on
+# legal text. The Cohere reranker degraded CUAD retrieval (Pipitone & Alami 2024
+# §5.1: P@1 9.27 → 1.97), and the BGE family was untested in that paper — Legal
+# Phase A R4 explicitly tests whether a different cross-encoder reverses or
+# repeats that finding. Alias "bge_large" pins the model name.
+BGE_LARGE_MODEL = "BAAI/bge-reranker-large"
 
 
 @register("reranker", "cross_encoder")
@@ -45,3 +51,17 @@ class CrossEncoderReranker:
                                       score=float(scores[i]),
                                       rank=new_rank))
         return out
+
+
+@register("reranker", "bge_large")
+class BgeLargeReranker(CrossEncoderReranker):
+    """Convenience alias: BGE-reranker-large with the right default model pinned.
+
+    Use as `{type: bge_large, top_n: N}`. Subclass keeps the parent's lazy
+    sentence-transformers import and pairwise scoring loop identical.
+    """
+
+    def __init__(self, model: str = BGE_LARGE_MODEL, batch_size: int = 16):
+        # bge-reranker-large is heavier than ms-marco-MiniLM, so default a
+        # smaller batch on CPU.
+        super().__init__(model=model, batch_size=batch_size)
