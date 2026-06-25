@@ -1,0 +1,3 @@
+config_name,config_id,domain,chunker,embedder,index,retriever,reranker,repacker,checkWithAbhi,prompt,generator,n,n_scored,relevance,utilization,completeness,adherence,relevant_count,total_sentences,utilized_count,overlap_count,unsupported_count,scoring
+extractive_norerank.yaml,fixed|minilm|faiss|dense|none|reverse|none|extractive|ollama,Biomedical,fixed,minilm,faiss,dense,none,reverse,none,extractive,ollama,10,10,0.5496176046176047,0.19357864357864357,0.2934523809523809,0.6,6.3,12.4,2.5,2.1,0.4,done
+grounded_norerank.yaml,fixed|minilm|faiss|dense|none|reverse|none|grounded|ollama,Biomedical,fixed,minilm,faiss,dense,none,reverse,none,grounded,ollama,10,10,0.6218398268398269,0.41468975468975466,0.5666666666666667,0.6,7.3,12.4,5.3,4.9,0.5,done
