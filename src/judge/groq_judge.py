@@ -43,6 +43,8 @@ a config offline (e.g. validation) needs no key; only a real API call does.
 """
 
 import os
+import threading
+import time
 
 from ..registry import register
 from .base import build_prompt, parse_label_json
@@ -51,12 +53,34 @@ from .base import build_prompt, parse_label_json
 DEFAULT_MODEL = "llama-3.3-70b-versatile"
 GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
 
+# ── shared request-rate throttle ──────────────────────────────────────────────────
+# Groq's free tier limits TOKENS-PER-MINUTE (e.g. 12k on llama-3.3-70b), not request
+# count. Our judge prompt embeds full documents (~1.8k tok short-domain), so only a few
+# calls fit per minute — and the validation sweep judges examples CONCURRENTLY, which
+# bursts straight past the budget. This module-level limiter spaces ALL requests (across
+# threads) to at most `requests_per_minute`. Holding the lock across the sleep is
+# deliberate: it serializes sends so concurrency can't defeat a per-minute budget.
+_RATE_LOCK = threading.Lock()
+_LAST_CALL = [0.0]          # monotonic timestamp of the most recent request (shared)
+
+
+def _throttle(min_interval: float) -> None:
+    """Block until `min_interval` s have elapsed since the last request (any thread)."""
+    if min_interval <= 0:
+        return
+    with _RATE_LOCK:
+        wait = min_interval - (time.monotonic() - _LAST_CALL[0])
+        if wait > 0:
+            time.sleep(wait)
+        _LAST_CALL[0] = time.monotonic()
+
 
 @register("judge", "groq")
 class GroqJudge:
     def __init__(self, model: str = DEFAULT_MODEL, max_retries: int = 1,
                  conservative: bool = False, timeout: float = 120.0,
-                 api_key: str | None = None, max_rate_limit_retries: int = 3):
+                 api_key: str | None = None, max_rate_limit_retries: int = 5,
+                 requests_per_minute: float = 0.0, max_backoff: float = 90.0):
         self.model = model
         self.max_retries = max_retries                  # malformed-JSON retries (temp up on retry)
         self.conservative = conservative                # append the conservative steer to the prompt?
@@ -65,6 +89,16 @@ class GroqJudge:
         # validation (which builds the object) works keyless. An explicit api_key= wins (tests).
         self.api_key = api_key or os.getenv("GROQ_API_KEY")
         self.max_rate_limit_retries = max_rate_limit_retries   # HTTP 429 back-off (free-tier limit)
+        # Proactive pacing: Groq's free tier limits TOKENS/min, and our prompts are big
+        # (full docs). requests_per_minute > 0 spaces every send so we stay UNDER the budget
+        # instead of relying only on reactive 429 back-off. 0 = off (offline tests / paid tier).
+        self._min_interval = 60.0 / requests_per_minute if requests_per_minute > 0 else 0.0
+        # Ceiling on a single 429 wait. Groq sends Retry-After: a per-MINUTE limit resets in
+        # seconds (worth waiting for), but the per-DAY token cap (TPD) resets in ~20+ MINUTES —
+        # honouring that verbatim parks the whole run in one time.sleep(). If Retry-After
+        # exceeds this ceiling we STOP retrying and raise, so the sweep skips+counts the example
+        # (a daily cap means the run is done for the day anyway — fail fast, don't hang).
+        self.max_backoff = max_backoff
 
     def _generate(self, prompt: str, sample: bool = False) -> str:
         """POST to Groq's OpenAI-compatible chat endpoint; return the raw completion text.
@@ -95,9 +129,18 @@ class GroqJudge:
                    "stream": False}
 
         for attempt in range(self.max_rate_limit_retries + 1):
+            _throttle(self._min_interval)               # proactive pacing (stay under TPM)
             resp = httpx.post(GROQ_URL, headers=headers, json=payload, timeout=self.timeout)
             if resp.status_code == 429 and attempt < self.max_rate_limit_retries:
+                # Honour Retry-After if sent; else exponential back-off.
                 wait = float(resp.headers.get("Retry-After", 2 ** attempt))
+                if wait > self.max_backoff:
+                    # A wait this long means a per-DAY cap (resets in ~20+ min), not the
+                    # per-minute bucket. Don't park the run — raise so the sweep skips+counts.
+                    raise RuntimeError(
+                        f"Groq rate limit needs {wait:.0f}s (> max_backoff {self.max_backoff:.0f}s) "
+                        f"— likely the daily token cap (TPD). Stopping retries. Body: {resp.text[:200]}"
+                    )
                 time.sleep(wait)
                 continue
             resp.raise_for_status()                     # 4xx/5xx (incl. context-too-long) -> raise

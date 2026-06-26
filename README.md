@@ -11,9 +11,11 @@ A modular, domain-aware **Retrieval-Augmented Generation** system with a strong 
 2. **RGB** — generation-robustness evaluation of several open-source LLMs across 4 abilities
    (noise robustness, negative rejection, information integration, counterfactual robustness).
 
-**Constraints:** open-source models only for retrieval/embeddings/generation; a hosted LLM is
-allowed **only as an evaluation judge**; metrics are implemented from the papers, not pulled from a
-ready-made library.
+**Constraints:** **open-weight models only** for retrieval / embeddings / generation — the rule is
+about model *licensing*, not where the model runs, so an open-weight model served by a hosted API
+(e.g. **Groq**) is allowed; closed / proprietary models (GPT-4 / Claude / Gemini) are barred from
+generation and permitted **only as an evaluation judge**. No Chinese-origin models anywhere. Metrics
+are implemented from the papers, not pulled from a ready-made library.
 
 ## Status
 
@@ -21,7 +23,7 @@ ready-made library.
 |---|---|---|
 | 0 | Repo, EDA, schema confirmation | ✅ done |
 | 1a | TRACe evaluator — **math half** (the 4 metrics from gold labels) | ✅ done & validated |
-| 1b | TRACe evaluator — **LLM-judge half** (labels our own pipeline) | ✅ built; judge selected (`llama3.1:8b`, local) |
+| 1b | TRACe evaluator — **LLM-judge half** (labels our own pipeline) | ✅ built; judge locked (`llama3.1:8b`, local); bigger judges (incl. Groq) used to *validate* that choice |
 | 1c | Modular RAG pipeline (built brick by brick) + config + experiment runner | ✅ built |
 | 2 | Strategy × domain results matrix + per-domain ablations + reference-score comparison | 🚧 N=50 matrix on 2 domains; 5 experiments done (see `docs/EXPERIMENTS.md`); more domains next |
 | 3 | RGB robustness evaluation | ⬜ |
@@ -33,7 +35,7 @@ ready-made library.
 
 **RAG pipeline bricks** (built one at a time, each tested): data loader ✅ · chunker + registry ✅ ·
 embedder ✅ · index + retriever ✅ (FAISS dense) · reranker + repacker ✅ · prompt builder ✅ ·
-generator ✅ (hf for Colab + echo for tests) · output segmenter ✅ (regex + nltk) · pipeline wiring + experiment runner ✅.
+generator ✅ (ollama local · groq hosted · hf for Colab · echo for tests) · output segmenter ✅ (regex + nltk) · pipeline wiring + experiment runner ✅.
 
 **🎉 The RAG pipeline + evaluator are complete** — a config (YAML in `configs/`) assembles all components and
 `run_matrix()` runs configs × domains into a resumable results CSV, and the TRACe **judge** (`llama3.1:8b` via the
@@ -64,12 +66,12 @@ src/
   reranking/       # Reranker interface + cross-encoder (accurate re-score) + noop
   repacking/       # Repacker interface + chunk-ordering strategies (forward/reverse/sides)
   prompting/       # PromptBuilder interface + grounded/minimal/grounded_complete variants
-  generation/      # Generator interface + Ollama (local) + HuggingFace (Colab) + echo (tests)
+  generation/      # Generator interface + Ollama (local) + Groq (hosted API) + HuggingFace (Colab) + echo (tests)
   segmentation/    # SentenceSplitter (regex/nltk) + OutputSegmenter: pipeline→evaluator bridge
   config.py        # YAML experiment config: load + validate against the registry
   pipeline.py      # Pipeline: assemble components from a config; index + answer
   runner.py        # ExperimentRunner: run configs × domains → resumable results CSV
-  judge/           # TRACe judge: Appendix-7.4 prompt → R/U labels (OSS on Colab + fake for tests)
+  judge/           # TRACe judge: Appendix-7.4 prompt → R/U labels (ollama local · groq hosted · hf Colab · fake for tests)
   evaluator/
     trace.py         # the 4 TRACe metrics (relevance, utilization, completeness, adherence)
     validate.py      # validates trace.py (math half) against RAGBench reference scores
