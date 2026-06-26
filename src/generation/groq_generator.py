@@ -45,7 +45,7 @@ GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
 class GroqGenerator:
     def __init__(self, model: str = DEFAULT_MODEL, max_new_tokens: int = 256,
                  temperature: float = 0.0, timeout: float = 120.0,
-                 api_key: str | None = None, max_retries: int = 3):
+                 api_key: str | None = None, max_retries: int = 3, max_backoff: float = 90.0):
         self.model = model
         self.max_new_tokens = max_new_tokens
         self.temperature = temperature
@@ -56,6 +56,10 @@ class GroqGenerator:
         # hits the API. An explicit api_key= wins (handy for tests).
         self.api_key = api_key or os.getenv("GROQ_API_KEY")
         self.max_retries = max_retries          # retries on HTTP 429 (free-tier rate limit)
+        # Ceiling on a single 429 wait. A per-MINUTE limit resets in seconds (worth waiting);
+        # the per-DAY token cap (TPD) resets in ~20+ min — honouring that verbatim would park
+        # generate() in one time.sleep(). Above this ceiling we raise instead of sleeping.
+        self.max_backoff = max_backoff
 
     def generate(self, prompt: str) -> str:
         """POST the prompt to Groq's OpenAI-compatible chat endpoint; return answer text.
@@ -89,6 +93,13 @@ class GroqGenerator:
             if resp.status_code == 429 and attempt < self.max_retries:
                 # Respect Retry-After (seconds) if Groq sent it; else exponential back-off.
                 wait = float(resp.headers.get("Retry-After", 2 ** attempt))
+                if wait > self.max_backoff:
+                    # A wait this long = the per-DAY cap (TPD), not the per-minute bucket.
+                    # Don't park generate() for 20+ min — raise so the caller handles it.
+                    raise RuntimeError(
+                        f"Groq rate limit needs {wait:.0f}s (> max_backoff {self.max_backoff:.0f}s) "
+                        f"— likely the daily token cap (TPD). Body: {resp.text[:200]}"
+                    )
                 time.sleep(wait)
                 continue
             resp.raise_for_status()             # 4xx/5xx (incl. a final 429) -> raise

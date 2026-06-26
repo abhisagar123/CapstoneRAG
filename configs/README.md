@@ -61,7 +61,7 @@ retriever: { type: dense, k: 20 }                      # k = candidates to retri
 reranker:  { type: cross_encoder, top_n: 5 }           # or { type: none, top_n: 5 }
 repacker:  { type: reverse }                           # forward | reverse | sides
 prompt:    { type: grounded }                          # grounded | minimal
-generator: { type: ollama, model: llama3.1:8b, max_new_tokens: 256 }   # local (Ollama); or type: hf for Colab
+generator: { type: ollama, model: llama3.1:8b, max_new_tokens: 256 }   # local (Ollama); or type: groq (hosted), hf (Colab)
 splitter:  { type: regex }                             # how our output is split for the judge
 seed: 42
 ```
@@ -75,11 +75,12 @@ seed: 42
 - **`reranker` and `repacker` are optional** — set to `null` to skip the stage entirely.
   All other stages are required.
 - **Generator backends:** `ollama` (local Ollama server — Mac; non-Chinese models like
-  `llama3.1:8b`, `mistral`, `gemma2:9b`) or `hf` (in-process transformers; Colab GPU).
-  `echo` is the no-model test stub.
-- **Heavy/lazy types.** `minilm` (embedder), `hf` (generator), `cross_encoder` (reranker),
-  and the real judges (`hf`, `ollama`) only appear in the registry after the matching
-  `load_embedders()` / `load_generators()` / `load_rerankers()` / `load_judges()` call. So
+  `llama3.1:8b`, `mistral`, `gemma2:9b`), `groq` (hosted API — bigger open-weight models like
+  `llama-3.3-70b-versatile` at high speed; needs `GROQ_API_KEY` in the env, read lazily), or
+  `hf` (in-process transformers; Colab GPU). `echo` is the no-model test stub.
+- **Heavy/lazy types.** `minilm` (embedder), generators (`hf`, `ollama`, `groq`), `cross_encoder`
+  (reranker), and the real judges (`hf`, `ollama`, `groq`) only appear in the registry after the
+  matching `load_embedders()` / `load_generators()` / `load_rerankers()` / `load_judges()` call. So
   **validate configs only after those loads.** Light types (`fixed`, `faiss`, `dense`,
   `none`, `reverse`, `grounded`, `minimal`, `regex`, `echo`, `fake`) are on bare `import src`.
 

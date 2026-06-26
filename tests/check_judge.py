@@ -310,6 +310,80 @@ def test_groq_judge_retries_on_malformed_json_with_sampling():
     assert temps[0] == 0.0 and temps[1] > 0.0           # greedy first, sampled retry
 
 
+def test_groq_judge_throttles_when_rpm_set():
+    # requests_per_minute > 0 must SPACE sends (proactive pacing under Groq's tokens/min
+    # budget). We stub time so the test is instant but still asserts the sleep was requested.
+    import time
+    import src.judge.groq_judge as gj
+    from src.judge.groq_judge import GroqJudge
+
+    good = '{"all_relevant_sentence_keys": [], "all_utilized_sentence_keys": [], "overall_supported": true}'
+    slept = []
+
+    class _Resp:
+        status_code = 200
+        headers = {}
+        def raise_for_status(self): pass
+        def json(self): return {"choices": [{"message": {"content": good}}]}
+
+    import httpx
+    orig_post, orig_sleep = httpx.post, time.sleep
+    orig_last = gj._LAST_CALL[0]
+    # Simulate "a request just happened" so the next send must wait ~the full interval.
+    gj._LAST_CALL[0] = time.monotonic()
+    httpx.post = lambda *a, **k: _Resp()
+    time.sleep = lambda s: slept.append(s)
+    try:
+        j = GroqJudge(api_key="test-key", requests_per_minute=5.0)   # -> 12s min interval
+        assert abs(j._min_interval - 12.0) < 1e-9
+        j.label("q?", KEYED)                                         # must pace behind the recent call
+    finally:
+        httpx.post, time.sleep = orig_post, orig_sleep
+        gj._LAST_CALL[0] = orig_last
+
+    assert slept and slept[0] > 0                                    # it waited before sending
+    assert slept[0] <= 12.0                                          # but no more than the interval
+
+
+def test_groq_judge_no_throttle_by_default():
+    # rpm unset (0) -> no pacing (offline tests / paid tier): _min_interval is 0.
+    from src.judge.groq_judge import GroqJudge
+    assert GroqJudge(api_key="k")._min_interval == 0.0
+
+
+def test_groq_judge_fails_fast_on_daily_cap():
+    # A 429 with a LONG Retry-After (the per-DAY token cap resets in ~20+ min) must RAISE
+    # immediately, not park the run in a 20-minute time.sleep(). Regression test for the
+    # "stuck sweep" bug: honouring Retry-After verbatim hung the whole validation run.
+    import time
+    import httpx
+    from src.judge.groq_judge import GroqJudge
+
+    slept = []
+
+    class _Resp429Daily:
+        status_code = 429
+        headers = {"Retry-After": "1289"}              # ~21 min — a daily-cap wait
+        text = '{"error":{"message":"...tokens per day (TPD): Limit 100000..."}}'
+        def raise_for_status(self): raise AssertionError("should raise before this")
+        def json(self): return {}
+
+    orig_post, orig_sleep = httpx.post, time.sleep
+    httpx.post = lambda *a, **k: _Resp429Daily()
+    time.sleep = lambda s: slept.append(s)             # would record a long sleep if it happened
+    try:
+        j = GroqJudge(api_key="test-key", max_rate_limit_retries=5, max_backoff=90.0)
+        try:
+            j.label("q?", KEYED)
+            assert False, "expected RuntimeError on a daily-cap-length Retry-After"
+        except RuntimeError as e:
+            assert "daily token cap" in str(e) or "TPD" in str(e)
+    finally:
+        httpx.post, time.sleep = orig_post, orig_sleep
+
+    assert not slept, "must NOT sleep for a daily-cap-length wait (fail fast instead)"
+
+
 def test_ollama_judge_posts_and_parses():
     # OFFLINE: mock httpx.post so we exercise the judge with NO server. Confirms it
     # sends the Appendix-7.4 prompt (with conservative steer) and parses the JSON.
