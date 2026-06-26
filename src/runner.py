@@ -90,6 +90,19 @@ def _dedup_docs(docs) -> list[str]:
             out.append(d)
     return out
 
+def _gold_scores(examples: list) -> dict:
+    """Compute mean gold TRACe scores from RAGBench labels on the same examples."""
+    rel = [ex.get("relevance_score", 0) for ex in examples]
+    util = [ex.get("utilization_score", 0) for ex in examples]
+    compl = [ex.get("completeness_score", 0) for ex in examples]
+    adh = [float(ex.get("adherence_score", 0)) for ex in examples]
+    return {
+        "gold_relevance":    _mean(rel),
+        "gold_utilization":  _mean(util),
+        "gold_completeness": _mean(compl),
+        "gold_adherence":    _mean(adh),
+    }
+
 
 def run_experiment(cfg, examples, *, segmenter: OutputSegmenter, judge=None,
                    corpus_docs=None) -> dict:
@@ -167,11 +180,18 @@ def run_experiment(cfg, examples, *, segmenter: OutputSegmenter, judge=None,
         "overlap_count": _mean(score_lists["overlap_count"]),
         "unsupported_count": _mean(score_lists["unsupported_count"]),
         "scoring": "done" if n_scored else "pending (no judge)",
+        **_gold_scores(examples),
+        "gap_relevance":    (_mean(score_lists["relevance"]) - _mean([ex.get("relevance_score", 0) for ex in examples])) if n_scored else "",
+        "gap_utilization":  (_mean(score_lists["utilization"]) - _mean([ex.get("utilization_score", 0) for ex in examples])) if n_scored else "",
+        "gap_completeness": (_mean(score_lists["completeness"]) - _mean([ex.get("completeness_score", 0) for ex in examples])) if n_scored else "",
+        "gap_adherence":    (_mean(score_lists["adherence"]) - _mean([float(ex.get("adherence_score", 0)) for ex in examples])) if n_scored else "",
     }
 
 FIELDNAMES = ["config_id", "domain", "chunker", "embedder", "index", "retriever",
               "reranker", "repacker", "summarizer", "prompt", "generator", "n", "n_scored",
               "relevance", "utilization", "completeness", "adherence",
+              "gold_relevance", "gold_utilization", "gold_completeness", "gold_adherence",
+              "gap_relevance", "gap_utilization", "gap_completeness", "gap_adherence",
               "relevant_count", "total_sentences", "utilized_count", "overlap_count",
               "unsupported_count",
               "scoring"]
