@@ -6,7 +6,7 @@ in order. Two phases, mirroring real RAG:
 
   index_documents(docs)  OFFLINE (once): chunk -> embed -> index
   answer(query)          ONLINE (per question):
-                         retrieve -> rerank -> repack -> [summarize] -> prompt -> generate
+                         [classify] -> retrieve -> rerank -> repack -> [summarize] -> prompt -> generate
 
 It returns {answer, sources, context} and STOPS there — segmenting + judging +
 TRACe scoring is the ExperimentRunner's job (clean separation; the judge is
@@ -59,6 +59,10 @@ class Pipeline:
         self.repacker = build("repacker", c.repacker.type, c.repacker.params) if c.repacker else None
         summarizer_cfg = getattr(c, "summarizer", None)
         self.summarizer = build("summarizer", summarizer_cfg.type, summarizer_cfg.params) if summarizer_cfg else None
+        # PDF Stage 1: optional. Absent → no classifier, pipeline always retrieves
+        # (the existing 30+ configs don't declare it and run unchanged).
+        qc_cfg = getattr(c, "query_classifier", None)
+        self.query_classifier = build("query_classifier", qc_cfg.type, qc_cfg.params) if qc_cfg else None
 
         # Retriever is config-driven. It wraps the built embedder + index (it's NOT a
         # bare registry build() like other stages, because it needs those objects), so a
@@ -109,11 +113,29 @@ class Pipeline:
     # ---------------- ONLINE: answer a query ----------------
 
     def answer(self, query: str) -> dict:
-        """Run the online chain and return {answer, sources, context}.
+        """Run the online chain and return {answer, sources, context, needs_retrieval}.
 
-        sources  = the chunks actually fed to the generator (post rerank/repack)
-        context  = the exact context text the prompt builder used
+        sources          = the chunks actually fed to the generator (post rerank/repack/summarize)
+        context          = the exact context text the prompt builder used
+        needs_retrieval  = classifier output (True if classifier absent — the default)
         """
+        # 0. PDF Stage 1: optional — do we even need to retrieve?
+        if self.query_classifier is not None:
+            needs_retrieval = self.query_classifier.classify(query).needs_retrieval
+        else:
+            needs_retrieval = True
+
+        if not needs_retrieval:
+            # Bypass retrieve / rerank / repack / summarize. Empty context.
+            prompt = self.prompt_builder.build(query, [])
+            answer = self.generator.generate(prompt)
+            return {
+                "answer": answer,
+                "sources": [],
+                "context": "",
+                "needs_retrieval": False,
+            }
+
         # 1. retrieve a wide net of candidates
         candidates = self.retriever.retrieve(query, k=self.k)
 
@@ -142,6 +164,7 @@ class Pipeline:
             "answer": answer,
             "sources": chunks,
             "context": "\n".join(rc.chunk.text for rc in chunks),
+            "needs_retrieval": True,
         }
 
 

@@ -1,0 +1,19 @@
+# Phase A R2 — R1 minus the prepended summary. Tests the SAC lever in isolation:
+# same 500-char window, same gte-large embedder, same dense retrieval, but the
+# chunker is plain FixedChunker (word-based, ~512 ≈ 500 chars for English prose).
+# R1 - R2 = the "SAC contribution" — Reuter Table 1 reports DRM halving (~35→19%).
+# NOTE: FixedChunker is word-based, not char-based; size=80 ≈ 500 chars for legal
+# prose (mean ~6 chars/word incl. spaces). Kept as 80-word window to keep chunk
+# count comparable. The chunker-units mismatch is acknowledged — R1 vs R2 still
+# isolates "prepended summary on/off" with otherwise-comparable chunk granularity.
+domain: Legal
+chunker:   { type: fixed, size: 80, overlap: 0 }
+embedder:  { type: gte_large }
+index:     { type: faiss, corpus_mode: per_example }
+retriever: { type: dense, k: 20 }
+reranker:  { type: none, top_n: 10 }
+repacker:  { type: forward }
+prompt:    { type: grounded_complete }
+generator: { type: ollama, model: llama3.1:8b, max_new_tokens: 256 }
+splitter:  { type: regex }
+seed: 42

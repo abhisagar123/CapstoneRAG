@@ -5,6 +5,7 @@ Layout:
   fixed_chunker.py            FixedChunker            (type "fixed")    — fixed word window
   noop_chunker.py             NoOpChunker             (type "none")     — whole doc = one chunk
   paragraph_group_chunker.py  ParagraphGroupChunker   (type "pgc")      — structure-aware (paper's PGC)
+  sac_chunker.py              SACChunker              (type "sac")      — fixed-char + prepended summary (LegalBench-RAG)
   semantic_chunker.py         SemanticChunker         (type "semantic") — cut where MEANING shifts (HEAVY)
   (planned: llm_chunker.py    LLMChunker              (type "llm")      — cut where an LLM says (HEAVY))
 
@@ -30,11 +31,13 @@ from .base import Chunk, Chunker, resolve_doc_ids  # noqa: F401  — shared cont
 from . import fixed_chunker            # noqa: F401  — registers FixedChunker ("fixed")
 from . import noop_chunker             # noqa: F401  — registers NoOpChunker ("none")
 from . import paragraph_group_chunker  # noqa: F401  — registers ParagraphGroupChunker ("pgc")
+from . import sac_chunker              # noqa: F401  — registers SACChunker ("sac")
 
 # Convenience re-exports (so `from src.chunking import FixedChunker` still works).
 from .fixed_chunker import FixedChunker                      # noqa: F401
 from .noop_chunker import NoOpChunker                        # noqa: F401
 from .paragraph_group_chunker import ParagraphGroupChunker   # noqa: F401
+from .sac_chunker import SACChunker                          # noqa: F401
 
 
 def load_chunkers() -> None:

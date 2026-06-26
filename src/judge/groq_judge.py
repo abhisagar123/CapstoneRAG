@@ -102,6 +102,15 @@ class GroqJudge:
                 continue
             resp.raise_for_status()                     # 4xx/5xx (incl. context-too-long) -> raise
             data = resp.json()
+            # Record token usage + $ against the running budget (Legal sweep cap).
+            # BudgetExceeded MUST propagate; any other tracker glitch is swallowed.
+            try:
+                from .. import cost_tracker
+                cost_tracker.record("judge", data.get("usage"), self.model)
+            except cost_tracker.BudgetExceeded:
+                raise
+            except Exception:
+                pass
             return data["choices"][0]["message"]["content"] or ""
 
     def label(self, question: str, keyed: dict) -> dict:

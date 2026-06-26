@@ -1,0 +1,18 @@
+# Phase A R3 — R1 with hybrid (dense+BM25 weighted RRF) instead of dense-only.
+# Reuter et al. report dense BEATS hybrid on LegalBench-RAG text-level P/R (a
+# 70/30 dense/sparse split degrades precision 11.0→9.8). But authors flag a
+# possible confound: BM25 may over-match the prepended SAC summary. R3 - R1 = the
+# "hybrid contribution under SAC" — we expect ≤0 if Reuter's direction transfers
+# to TRACe metrics; if positive, the SAC-summary-overmatch confound was specific
+# to their P/R measurement.
+domain: Legal
+chunker:   { type: sac, size: 500, overlap: 0, summary_chars: 150 }
+embedder:  { type: gte_large }
+index:     { type: faiss, corpus_mode: per_example }
+retriever: { type: hybrid, k: 20, w_dense: 0.7, w_sparse: 0.3, k_rrf: 60 }
+reranker:  { type: none, top_n: 10 }
+repacker:  { type: forward }
+prompt:    { type: grounded_complete }
+generator: { type: ollama, model: llama3.1:8b, max_new_tokens: 256 }
+splitter:  { type: regex }
+seed: 42

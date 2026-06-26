@@ -1,0 +1,18 @@
+{
+  "gen": {
+    "calls": 211,
+    "cost_usd": 0.20193,
+    "in_tokens": 315286,
+    "out_tokens": 20145
+  },
+  "hard_cap_usd": 4.5,
+  "judge": {
+    "calls": 211,
+    "cost_usd": 0.418545,
+    "in_tokens": 551371,
+    "out_tokens": 118016
+  },
+  "last_update": "2026-06-21T05:40:49+00:00",
+  "since": "2026-06-21T03:42:55+00:00",
+  "total_usd": 0.620475
+}

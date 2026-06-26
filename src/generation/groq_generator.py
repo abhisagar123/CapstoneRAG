@@ -93,6 +93,16 @@ class GroqGenerator:
                 continue
             resp.raise_for_status()             # 4xx/5xx (incl. a final 429) -> raise
             data = resp.json()
+            # Record token usage + $ against the running budget. BudgetExceeded MUST
+            # propagate (it's the hard cap); any other tracker error is swallowed so a
+            # disk-full / corrupt-json glitch can't crash the experiment.
+            try:
+                from .. import cost_tracker
+                cost_tracker.record("gen", data.get("usage"), self.model)
+            except cost_tracker.BudgetExceeded:
+                raise
+            except Exception:
+                pass
             # content can be null on a content-filter / empty finish — coerce to "" so the
             # caller always gets a str (the Generator contract).
             return data["choices"][0]["message"]["content"] or ""

@@ -1,0 +1,5 @@
+config_name,config_id,domain,chunker,embedder,index,retriever,reranker,repacker,summarizer,prompt,generator,n,n_scored,relevance,utilization,completeness,adherence,scoring
+legal_fixed500_dense.yaml,fixed|gte_large|faiss|dense|none|forward|none|grounded_complete|groq,Legal,fixed,gte_large,faiss,dense,none,forward,none,grounded_complete,groq,50,50,0.18097284051147294,0.07386449453507958,0.5644740527790063,0.84,done
+legal_sac_dense.yaml,sac|gte_large|faiss|dense|none|forward|none|grounded_complete|groq,Legal,sac,gte_large,faiss,dense,none,forward,none,grounded_complete,groq,50,50,0.15115393525091714,0.08195761192509393,0.6443601237943344,0.76,done
+legal_sac_hybrid.yaml,sac|gte_large|faiss|hybrid|none|forward|none|grounded_complete|groq,Legal,sac,gte_large,faiss,hybrid,none,forward,none,grounded_complete,groq,50,50,0.17042886034016028,0.07362939150243025,0.6460483025746184,0.8,done
+legal_sac_rerank.yaml,sac|gte_large|faiss|dense|bge_large|reverse|none|grounded_complete|groq,Legal,sac,gte_large,faiss,dense,bge_large,reverse,none,grounded_complete,groq,50,50,0.22247748183547325,0.09410091939147676,0.6178097863235164,0.76,done

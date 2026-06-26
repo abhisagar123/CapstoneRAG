@@ -1,0 +1,17 @@
+# Phase A R4 — R1 with BGE-reranker-large added (top_n=5, reverse repack so the
+# strongest evidence sits next to the question). Pipitone & Alami 2024 found
+# Cohere's reranker DEGRADED CUAD retrieval (P@1 9.27→1.97); BGE-reranker-large
+# was untested in that study. R4 - R1 = the "reranker contribution with a
+# non-Cohere cross-encoder". Expected sign is unknown — this is the genuine
+# open question from the research.
+domain: Legal
+chunker:   { type: sac, size: 500, overlap: 0, summary_chars: 150 }
+embedder:  { type: gte_large }
+index:     { type: faiss, corpus_mode: per_example }
+retriever: { type: dense, k: 20 }
+reranker:  { type: bge_large, top_n: 10 }
+repacker:  { type: reverse }
+prompt:    { type: grounded_complete }
+generator: { type: ollama, model: llama3.1:8b, max_new_tokens: 256 }
+splitter:  { type: regex }
+seed: 42
