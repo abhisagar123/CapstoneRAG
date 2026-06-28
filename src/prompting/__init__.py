@@ -26,3 +26,5 @@ from .grounded_prompt_builder import GroundedPromptBuilder                  # no
 from .minimal_prompt_builder import MinimalPromptBuilder                    # noqa: F401
 from .grounded_complete_prompt_builder import GroundedCompletePromptBuilder  # noqa: F401
 from .extractive_prompt_builder import ExtractivePromptBuilder              # noqa: F401
+from . import minimal_grounded_prompt_builder   # noqa: F401 — registers "minimal_grounded"
+from .minimal_grounded_prompt_builder import MinimalGroundedPromptBuilder  # noqa: F401

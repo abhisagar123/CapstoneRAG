@@ -57,7 +57,7 @@ def print_verdict(out_csv=OUT_CSV):
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("--backend", default="ollama", choices=["ollama", "hf"])
+    ap.add_argument("--backend", default="ollama", choices=["ollama", "hf", "groq"])
     ap.add_argument("--judge-model", default="llama3.1:8b")
     ap.add_argument("--gen-model", default="llama3.2:3b")
     ap.add_argument("--domains", nargs="+", default=["GenKnowledge", "CustomerSupport"])
@@ -93,11 +93,21 @@ def main():
     from src.runner import build_grid, run_named_matrix
     load_chunkers(); load_embedders(); load_generators(); load_rerankers(); load_summarizers()
 
-    judge = build_judge(args.backend, args.judge_model)
-    gen_override = ({"type": "ollama", "model": args.gen_model, "max_new_tokens": args.max_new_tokens}
-                    if args.backend == "ollama"
-                    else {"type": "hf", "model": args.gen_model, "load_in_4bit": True,
-                          "max_new_tokens": args.max_new_tokens})
+    # judge = build_judge(args.backend, args.judge_model)
+    judge = build_judge("ollama", args.judge_model)
+
+    if args.backend == "ollama":
+        gen_override = {"type": "ollama", "model": args.gen_model, "max_new_tokens": args.max_new_tokens}
+    elif args.backend == "groq":
+        gen_override = {"type": "groq", "model": args.gen_model, "max_new_tokens": args.max_new_tokens}
+    else:
+        gen_override = {"type": "hf", "model": args.gen_model, "load_in_4bit": True,
+                        "max_new_tokens": args.max_new_tokens}
+        
+    # gen_override = ({"type": "ollama", "model": args.gen_model, "max_new_tokens": args.max_new_tokens}
+    #                 if args.backend == "ollama"
+    #                 else {"type": "hf", "model": args.gen_model, "load_in_4bit": True,
+    #                       "max_new_tokens": args.max_new_tokens})
 
     raw = {os.path.basename(p): yaml.safe_load(open(p)) for p in sorted(glob.glob("configs/*.yaml"))}
     if args.configs:                                 # filter to a subset by filename substring
