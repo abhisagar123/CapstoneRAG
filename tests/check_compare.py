@@ -18,6 +18,7 @@ from src.evaluator.compare import (
     build_comparison, comparison_fieldnames, write_comparison_csv,
     reference_means, METRICS, _to_float, _mean_reference_fields,
     load_matrix_rows, plot_matrix,
+    summarize_gaps, write_summary_csv, SUMMARY_COLS, _mean_std,
 )
 
 WANT_DATASET = os.environ.get("DATASET") == "1"
@@ -227,6 +228,50 @@ def test_write_comparison_csv_roundtrips():
     assert len(back) == 3
     assert "relevance_gap" in back[0]
     assert abs(float(back[0]["relevance_gap"]) - 0.10) < 1e-9
+    os.remove(path); os.remove(out)
+
+
+def test_mean_std_basic():
+    # mean + POPULATION std (divide by n). Single value -> std 0.
+    mean, std = _mean_std([0.1, 0.3])
+    assert abs(mean - 0.2) < 1e-9 and abs(std - 0.1) < 1e-9
+    assert _mean_std([0.5]) == (0.5, 0.0)
+
+
+def test_summarize_gaps_bias_and_spread():
+    # a.yaml relevance gap = +0.10, b.yaml = -0.05 (ours 0.25 - ref 0.30). The c.yaml row
+    # is blank (pending) and MUST be excluded. So relevance summarises over 2 cells:
+    # bias = mean(+0.10, -0.05) = +0.025; the range carries the sign both ways.
+    path = _write_matrix(MATRIX_ROWS)
+    rows = build_comparison(path, reference_fn=_fake_reference_fn)
+    summary = summarize_gaps(rows)
+    bym = {s["metric"]: s for s in summary}
+    rel = bym["relevance"]
+    assert rel["n_cells"] == 2                              # pending row excluded
+    assert abs(rel["bias"] - 0.025) < 1e-9                  # signed mean keeps direction
+    assert rel["gap_min"] < 0 < rel["gap_max"]              # spans both sides of the benchmark
+    assert rel["spread"] > 0                                # the two gaps differ -> non-zero spread
+    # NO rmse key — bias+spread only (the deliberate design choice).
+    assert "rmse" not in rel and set(rel) == set(SUMMARY_COLS)
+    os.remove(path)
+
+
+def test_summarize_gaps_skips_all_pending_metric():
+    # If EVERY cell for a metric is blank, that metric is omitted (no scored gaps).
+    rows = build_comparison(_write_matrix([MATRIX_ROWS[2]]), reference_fn=_fake_reference_fn)
+    assert summarize_gaps(rows) == []                       # the lone row is all-pending
+
+
+def test_write_summary_csv_roundtrips():
+    path = _write_matrix(MATRIX_ROWS)
+    rows = build_comparison(path, reference_fn=_fake_reference_fn)
+    summary = summarize_gaps(rows)
+    out = os.path.join(tempfile.gettempdir(), "_check_compare_summary.csv")
+    write_summary_csv(summary, out)
+    with open(out, newline="") as f:
+        back = list(csv.DictReader(f))
+    assert [r["metric"] for r in back] == [s["metric"] for s in summary]
+    assert list(back[0].keys()) == SUMMARY_COLS             # exact column schema
     os.remove(path); os.remove(out)
 
 

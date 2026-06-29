@@ -161,6 +161,70 @@ def write_comparison_csv(rows: list[dict], path: str) -> None:
         w.writerows(rows)
 
 
+# ── per-metric gap summary: BIAS + SPREAD (deliberately NOT RMSE) ───────────────────
+# Across the comparison's cells (one per config×domain) each metric has a set of gaps
+# (ours - reference). We summarise that set with TWO numbers, not one:
+#   bias   = signed mean of the gaps  -> WHICH WAY and HOW FAR we sit vs the benchmark.
+#   spread = std-dev of the gaps      -> how CONSISTENT that offset is across configs.
+#
+# Why not RMSE (the question everyone asks): RMSE measures distance-from-a-bullseye and
+# THROWS THE SIGN AWAY. But here the sign IS the finding — relevance ABOVE reference is a
+# retriever WIN, adherence BELOW is the real hallucination gap — so an "error" magnitude
+# would mislabel a win as a defect. And because RMSE^2 = bias^2 + spread^2, RMSE MERGES the
+# two things we need apart: e.g. utilization has bias~=0 but spread~=0.07 ("dead-on average
+# but config-dependent"), a completely different story from relevance's steady +0.10 offset
+# — RMSE collapses both to ~0.07 and hides which is which. (RMSE is the RIGHT tool for JUDGE
+# VALIDATION, where ours and the reference score the SAME inputs so a per-example error is
+# real; THAT is a different comparison — see evaluator/judge_validate.py.)
+
+def _mean_std(values: list[float]) -> tuple[float, float]:
+    """Population mean and std-dev of a non-empty list (std=0 for a single value)."""
+    n = len(values)
+    mean = sum(values) / n
+    var = sum((v - mean) ** 2 for v in values) / n
+    return mean, var ** 0.5
+
+
+def summarize_gaps(rows: list[dict]) -> list[dict]:
+    """Collapse the per-cell comparison into one bias+spread row PER metric.
+
+    `rows` are build_comparison() output. For each TRACe metric we gather every cell's
+    `{metric}_gap` (skipping blanks — a pending/unscored cell has no gap), then report:
+        metric, n_cells, bias (signed mean gap), spread (std of gaps),
+        gap_min, gap_max  (the signed range — so a one-sided offset is obvious at a glance).
+    Metrics with no scored cells are omitted. Deliberately NO rmse column — see the note
+    above; a bare "RMSE" here would be mistaken for the judge-validation error metric.
+    """
+    summary = []
+    for m in METRICS:
+        gaps = [r[f"{m}_gap"] for r in rows
+                if r.get(f"{m}_gap") is not None and _to_float(r[f"{m}_gap"]) is not None]
+        gaps = [float(g) for g in gaps]
+        if not gaps:
+            continue
+        bias, spread = _mean_std(gaps)
+        summary.append({"metric": m, "n_cells": len(gaps),
+                        "bias": bias, "spread": spread,
+                        "gap_min": min(gaps), "gap_max": max(gaps)})
+    return summary
+
+
+SUMMARY_COLS = ["metric", "n_cells", "bias", "spread", "gap_min", "gap_max"]
+
+
+def write_summary_csv(summary: list[dict], path: str) -> None:
+    """Write the per-metric bias+spread summary to its own CSV (the headline artifact —
+    the one number-per-metric a reader scans before the per-cell detail)."""
+    import csv
+    import os
+
+    os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
+    with open(path, "w", newline="") as f:
+        w = csv.DictWriter(f, fieldnames=SUMMARY_COLS)
+        w.writeheader()
+        w.writerows(summary)
+
+
 def _strategy_label(row: dict) -> str:
     """Short strategy name for a chart axis: prefer the YAML filename without its
     extension (e.g. 'grounded_rerank'), fall back to the config_id."""
