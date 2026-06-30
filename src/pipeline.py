@@ -22,7 +22,7 @@ Assembly notes (why this isn't just "build each stage from config"):
 """
 
 from .registry import build
-from .retrieval import DenseRetriever, BM25Retriever, HybridRetriever
+from .retrieval import DenseRetriever, BM25Retriever, HybridRetriever, MMRRetriever
 
 
 # How many candidates to retrieve / keep, if the config doesn't say.
@@ -81,6 +81,8 @@ class Pipeline:
             return BM25Retriever()
         if rtype == "hybrid":
             return HybridRetriever(embedder=self.embedder, index=self.index, **p)
+        if rtype == "mmr":
+            return MMRRetriever(embedder=self.embedder, index=self.index, **p)
         return DenseRetriever(embedder=self.embedder, index=self.index)   # "dense" default
 
     # ---------------- OFFLINE: build the index ----------------

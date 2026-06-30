@@ -1,0 +1,41 @@
+# Pooled Exp 17: top_n WIDENING (5 -> 10) — feed the generator MORE chunks. LEGAL-PORTED lever.
+# Source of the idea: the partner's Legal Phase A (docs/legal/PHASE_A_FINDINGS.md) found top_n was
+# its single most important pin — top_n=5 caused all-refusals on the 70B; raising to 10 was REQUIRED
+# to unblock utilization/completeness, and {5,10,15} was named the #1 Phase-B sweep. Across ALL our
+# 16 pooled experiments we only ever TIGHTENED top_n (3 or 5) — we NEVER widened it. This closes that
+# gap, aimed squarely at CustomerSupport's one stubborn bottleneck: COVERAGE (completeness).
+#
+# Base = CustomerSupport's WINNER, grounded_pooled_pgc_complete.yaml @ llama3.1:8b (Exp 12:
+# compl 0.473, adh 0.600 — both track-best). ONE change: reranker.top_n 5 -> 10. (top_n lives on the
+# reranker stage even when reranker.type=none — the pipeline reads it as the truncation count
+# candidates[:top_n]; retriever k=20 >= 10, so 10 chunks are genuinely available to feed.)
+#
+# WHY 8B not 3B: Exp 11/12 showed the 3B is EXHAUSTED on coverage; the 8B is the generator with the
+# capacity to actually USE more chunks. Testing the lever on the 3B would risk a capacity-confounded
+# null ("3B can't use the extra chunks" masquerading as "top_n doesn't help"). 8B isolates top_n AND
+# is the decision-relevant baseline (it IS the CustS winner). RUN WITH --gen-model llama3.1:8b.
+#
+# WHY CustomerSupport only: GenKnowledge's winner is a DIFFERENT config (complete_top3), its docs are
+# atomic (~86 words ≈ 1 chunk) so widening top_n just packs noise chunks (predicted dilution), and we
+# have no clean GenK pgc_complete @ 8B baseline to diff against. Adding GenK would muddy, not control.
+#
+# ⚠️ config_id is built from stage TYPES (chunker=pgc, reranker=none, prompt=grounded_complete) — the
+# SAME triple as grounded_pooled_pgc_complete.yaml, since only the top_n PARAM differs. So this SHARES
+# a config_id with pgc_complete and would COLLIDE in one grid. Run it into its OWN --out CSV and filter
+# with the FULL substring `grounded_pooled_pgc_complete_topn10` (NOT `grounded_pooled_pgc_complete`,
+# which also matches Exp 8/12's config and trips the collision guard).
+domain: Legal
+
+chunker:   { type: pgc, paragraphs: 2, overlap: 1 }
+embedder:  { type: minilm }
+index:     { type: faiss, corpus_mode: pooled }
+
+retriever: { type: dense, k: 20 }
+reranker:  { type: none, top_n: 10 }                  # the ONE variable vs grounded_pooled_pgc_complete (was 5)
+repacker:  { type: reverse }
+prompt:    { type: grounded_complete }
+generator: { type: ollama, model: llama3.1:8b, max_new_tokens: 256 }   # cosmetic — pass --gen-model llama3.1:8b
+
+splitter:  { type: regex }
+
+seed: 42

@@ -1,0 +1,36 @@
+# Pooled Exp C (Tier-2 stack, UNLOCKED by Exp 15 F3): PGC chunker + bge_large reranker.
+# THE STACK TEST. Both stages individually HELPED CustomerSupport under plain grounded @ 3B:
+#   - PGC chunker (Exp 7):     CustS relevance 0.205 -> 0.372, completeness 0.121 -> 0.256 (adh 0.460)
+#   - bge_large reranker (Exp 15): CustS relevance 0.205 -> 0.234, completeness 0.121 -> 0.174 (adh 0.480)
+# They are ORTHOGONAL pipeline stages — PGC sets chunk BOUNDARIES (paragraph groups), bge_large does
+# candidate SELECTION (rerank top-20 -> top-5). Different stages -> by the stack principle (Exp 8: PGC +
+# grounded_complete STACKED because orthogonal) they MAY combine: feed PGC's coherent paragraph chunks
+# INTO the stronger reranker. Question: does PGC(rel 0.372) + bge_large rerank beat PGC alone, or do they
+# just overlap (AVERAGE, like reranker vs grounded_complete in Exp 5A/11)?
+#
+# Composition: chunker from grounded_pooled_pgc.yaml + reranker from grounded_pooled_bge_rerank.yaml.
+# EVERYTHING else = the plain pooled baseline (minilm, dense k=20, reverse, plain grounded, 3B).
+# Held at PLAIN grounded + 3B on purpose: that's the exact setup both parents ran, so this is a clean
+# one-question stack test (NOT confounded by prompt or generator). Per-domain bests live elsewhere
+# (CustS pgc_complete@8B); this isolates the retrieval-side stack.
+#
+# config_id is built from stage TYPES (chunker=pgc, reranker=bge_large, prompt=grounded) — a UNIQUE
+# combination, no existing config shares all three. Still given its OWN --out CSV and filtered with the
+# full substring `grounded_pooled_pgc_bge_rerank` (only this file matches it), per house style.
+# Both domains N=50 for the complete picture (GenK expected flat/slightly down: Exp 15 showed bge_large
+# lost to the small cross_encoder on GenK, and PGC-alone GenK adh 0.620 is already the plain-grounded best).
+domain: Legal
+
+chunker:   { type: pgc, paragraphs: 2, overlap: 1 }    # from Exp 7 PGC (was: fixed 512/50)
+embedder:  { type: minilm }
+index:     { type: faiss, corpus_mode: pooled }
+
+retriever: { type: dense, k: 20 }
+reranker:  { type: bge_large, top_n: 5 }               # from Exp 15 (was: none)
+repacker:  { type: reverse }
+prompt:    { type: grounded }
+generator: { type: ollama, model: llama3.2:3b, max_new_tokens: 256 }   # 3B — matches BOTH parents; overridden by --gen-model
+
+splitter:  { type: regex }
+
+seed: 42

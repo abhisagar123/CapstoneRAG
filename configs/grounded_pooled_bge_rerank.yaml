@@ -1,0 +1,28 @@
+# Pooled Exp 15: STRONGER reranker (bge_large) — re-test the Exp 3 domain split.
+# Pooled Exp 3 used the SMALL ms-marco-MiniLM cross-encoder (type cross_encoder, ~80MB):
+# it helped GenKnowledge (adherence -> 0.604, the pooled best) but BACKFIRED on
+# CustomerSupport (relevance -0.039, adherence -0.060) -> we concluded "reranking is
+# domain-dependent." But that conclusion is really about the SMALL reranker.
+# PR #49's Legal Phase A found bge-reranker-large (560MB) was the single biggest relevance
+# lever on hard long-document CUAD, REVERSING a published result where a weaker reranker
+# (Cohere) DEGRADED the same data. So the open question: does a stronger cross-encoder
+# reverse the CustomerSupport backfire too?
+# ONLY `reranker` differs from grounded_pooled_norerank.yaml (none -> bge_large); all else
+# identical to grounded_pooled_rerank.yaml EXCEPT the reranker MODEL (cross_encoder -> bge_large).
+# Kept under PLAIN grounded on purpose: Exp 11 showed rerankers fight grounded_complete
+# (they optimize ranking, not coverage), so this stays a fair re-test of Exp 3's setup.
+domain: Legal
+
+chunker:   { type: fixed, size: 512, overlap: 50 }
+embedder:  { type: minilm }
+index:     { type: faiss, corpus_mode: pooled }
+
+retriever: { type: dense, k: 20 }
+reranker:  { type: bge_large, top_n: 5 }              # the one variable vs Exp 3 (was cross_encoder = ms-marco)
+repacker:  { type: reverse }
+prompt:    { type: grounded }
+generator: { type: ollama, model: llama3.2:3b, max_new_tokens: 256 }   # 3B, same as the Exp 3 baseline
+
+splitter:  { type: regex }
+
+seed: 42

@@ -1,0 +1,2 @@
+config_name,config_id,domain,chunker,embedder,index,retriever,reranker,repacker,summarizer,prompt,generator,n,n_scored,relevance,utilization,completeness,adherence,scoring
+grounded_pooled_pgc_coverage.yaml,pgc|minilm|faiss|dense|none|reverse|none|grounded_coverage|ollama,CustomerSupport,pgc,minilm,faiss,dense,none,reverse,none,grounded_coverage,ollama,50,49,0.40722345470871035,0.20008809330811958,0.28046638010042724,0.32653061224489793,done

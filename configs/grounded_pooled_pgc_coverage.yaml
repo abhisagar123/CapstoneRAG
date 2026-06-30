@@ -1,0 +1,44 @@
+# Pooled Exp G (CustS arm): attack the TERSENESS that Exp E exposed with a PROMPT, on the
+# existing local 8B — BEFORE spending on a bigger generator (70B/Groq).
+# ONE change off grounded_pooled_pgc_complete.yaml (the CustomerSupport winner):
+#   prompt  grounded_complete -> grounded_coverage
+# Everything else (pgc chunking, top_n 5, reverse repack, k=20, llama3.1:8b) held fixed, so
+# this isolates the PROMPT — a clean one-variable ablation vs the winner.
+#
+# WHY: Exp E telemetry showed CustS completeness/utilization are stuck because the 8B (and
+# gemma2:9b) ANSWER almost everything but write SHORT, over-summarised answers that use FEWER
+# of the relevant context sentences (not hallucination — adherence held; not the token cap —
+# Exp F + the length probe killed that). The winner prompt already says the abstract "be
+# thorough" and the model ignores it. grounded_coverage replaces that adjective with a
+# PROCEDURAL recipe ("the context is numbered passages; consider each in turn; include every
+# relevant detail; do not OMIT a relevant detail to keep your answer short"). Small models
+# follow a concrete recipe better than an adjective.
+#   - If completeness/utilization rise WHILE adherence holds -> the wall is partly PROMPTABLE
+#     (we may not need 70B, or we know exactly what to ask it for).
+#   - If they don't move -> strong evidence the wall is real CAPACITY -> justifies 70B spend.
+#
+# ⚠️ Adherence guardrail (Exp 16b): the steer is a COVERAGE rule ("do not omit"), NOT a LENGTH
+# reward ("be longer") — length-rewarding pressure cratered adherence in Exp 16b. Read the
+# completeness delta WITH adherence, never alone.
+#
+# WHY a SEPARATE config file + own --out CSV: telemetry JSONL is keyed on the config FILENAME
+# and is APPEND-ONLY; reusing pgc_complete.yaml would append onto the winner's 100 llama-8B
+# records (Exp 18) and corrupt them. config_id is built from stage TYPES (chunker=pgc,
+# reranker=none, prompt=grounded_coverage) — prompt TYPE now DIFFERS from pgc_complete, but run
+# it ALONE into its own --out CSV and filter with the FULL substring
+# `grounded_pooled_pgc_coverage.yaml` (the .yaml suffix makes it exact) to be safe.
+domain: Legal
+
+chunker:   { type: pgc, paragraphs: 2, overlap: 1 }
+embedder:  { type: minilm }
+index:     { type: faiss, corpus_mode: pooled }
+
+retriever: { type: dense, k: 20 }
+reranker:  { type: none, top_n: 5 }
+repacker:  { type: reverse }
+prompt:    { type: grounded_coverage }                # vs winner grounded_complete (ONLY change)
+generator: { type: ollama, model: llama3.1:8b, max_new_tokens: 256 }   # overridden by --gen-model
+
+splitter:  { type: regex }
+
+seed: 42

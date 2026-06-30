@@ -1,0 +1,36 @@
+# Pooled Exp E (CustS arm): the CustomerSupport WINNER (pgc_complete) at a 2nd big LOCAL generator.
+# ONE change off grounded_pooled_pgc_complete.yaml: generator llama3.1:8b -> gemma2:9b. Everything
+# else (pgc chunking, grounded_complete prompt, top_n 5, reverse repack, k=20) held fixed, so this
+# isolates the GENERATOR family at ~the same scale (8-9B). The hypothesis the whole local sweep has
+# converged on: the CustS ceiling is GENERATOR CAPACITY, not retrieval (MMR/top_n/SAC/reranker all
+# rejected). If a DIFFERENT 9B lifts adherence/completeness over the 8B (winner: adh 0.535-0.600,
+# compl 0.395-0.473 at N=100/50), capacity is the lever -> Groq 70B is justified. If it lands ~equal,
+# that's the cleanest possible confirmation the wall is real and ~model-agnostic at this size.
+#
+# WHY a SEPARATE config file (not just --gen-model on pgc_complete.yaml): telemetry JSONL is keyed on
+# the config FILENAME and is APPEND-ONLY. pgc_complete.yaml already holds the winner's 100 llama-8B
+# records (Exp 18) — reusing that filename would APPEND gemma records onto the winner's trace and
+# corrupt it. A distinct filename => its own clean telemetry file.
+#
+# config_id is built from stage TYPES (chunker=pgc, reranker=none, prompt=grounded_complete, generator
+# type=ollama) — IDENTICAL to pgc_complete.yaml (gemma vs llama is a MODEL string, not a stage type).
+# So this would COLLIDE with pgc_complete in one grid; run it ALONE into its own --out CSV and filter
+# with the FULL substring `grounded_pooled_pgc_complete_gemma.yaml` (the .yaml suffix makes it exact).
+#
+# RUN WITH --gen-model gemma2:9b (build_grid overrides the YAML generator line; the line below is set
+# to gemma2:9b for honesty but the flag is what binds).
+domain: Legal
+
+chunker:   { type: pgc, paragraphs: 2, overlap: 1 }
+embedder:  { type: minilm }
+index:     { type: faiss, corpus_mode: pooled }
+
+retriever: { type: dense, k: 20 }
+reranker:  { type: none, top_n: 5 }
+repacker:  { type: reverse }
+prompt:    { type: grounded_complete }
+generator: { type: ollama, model: gemma2:9b, max_new_tokens: 256 }   # pass --gen-model gemma2:9b
+
+splitter:  { type: regex }
+
+seed: 42

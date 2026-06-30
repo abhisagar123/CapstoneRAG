@@ -1,0 +1,34 @@
+# Pooled Exp E (GenK arm): the GenKnowledge WINNER (complete_top3) at a 2nd big LOCAL generator.
+# ONE change off grounded_pooled_complete_top3.yaml: generator llama3.1:8b -> gemma2:9b. Everything
+# else (fixed-512 chunks, grounded_complete prompt, top_n 3, reverse repack, k=20) held fixed.
+#
+# WHY GenK is especially worth a 3rd generator point: on GenK, BIGGER already HURT once — complete_top3
+# completeness was 0.655 @ llama3.2:3b but REGRESSED to 0.445 @ llama3.1:8b (Exp 12's "bigger isn't
+# always better" on this domain). gemma2:9b is a clean third point on that non-monotonic curve:
+#   - if gemma2:9b RECOVERS toward 0.655, the 8B dip is MODEL-SPECIFIC (llama-8B quirk), not size.
+#   - if gemma2:9b stays ~0.445, the regression is a SIZE effect (bigger models over-summarise GenK's
+#     atomic ~86-word docs, using fewer of the relevant sentences) -> a real per-domain finding.
+# Either outcome is citable. NOTE the Exp F caveat: GenK completeness is mostly-real grounded coverage
+# but partly an easy-|R| denominator artifact -> read the gemma completeness WITH adherence, not alone.
+#
+# WHY a SEPARATE config file + own --out CSV: same as the CustS arm — telemetry is filename-keyed and
+# append-only (complete_top3 currently has NO telemetry, so this also CAPTURES its first traces), and
+# config_id (stage types: chunker=fixed, reranker=none, prompt=grounded_complete) collides with
+# complete_top3.yaml. Filter with FULL substring `grounded_pooled_complete_top3_gemma.yaml`.
+#
+# RUN WITH --gen-model gemma2:9b.
+domain: Legal
+
+chunker:   { type: fixed, size: 512, overlap: 50 }
+embedder:  { type: minilm }
+index:     { type: faiss, corpus_mode: pooled }
+
+retriever: { type: dense, k: 20 }
+reranker:  { type: none, top_n: 3 }
+repacker:  { type: reverse }
+prompt:    { type: grounded_complete }
+generator: { type: ollama, model: gemma2:9b, max_new_tokens: 256 }   # pass --gen-model gemma2:9b
+
+splitter:  { type: regex }
+
+seed: 42

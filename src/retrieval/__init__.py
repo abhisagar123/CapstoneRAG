@@ -19,7 +19,9 @@ from .base import Retriever  # noqa: F401 — shared contract
 from . import dense_retriever   # noqa: F401 — registers DenseRetriever ("dense")
 from . import bm25_retriever    # noqa: F401 — registers BM25Retriever ("bm25")
 from . import hybrid_retriever  # noqa: F401 — registers HybridRetriever ("hybrid")
+from . import mmr_retriever     # noqa: F401 — registers MMRRetriever ("mmr")
 
 from .dense_retriever import DenseRetriever    # noqa: F401 — convenience re-exports
 from .bm25_retriever import BM25Retriever      # noqa: F401
 from .hybrid_retriever import HybridRetriever  # noqa: F401
+from .mmr_retriever import MMRRetriever        # noqa: F401
