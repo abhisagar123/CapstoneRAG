@@ -79,9 +79,19 @@ def main():
     ap.add_argument("--configs", nargs="+", default=None,
                     help="only run config files whose name contains one of these substrings "
                          "(e.g. --configs grounded_norerank). Default: all configs/*.yaml.")
+    ap.add_argument("--telemetry-dir", default=None,
+                    help="where per-example JSONL traces go (overrides $CAPSTONERAG_TELEMETRY_DIR, "
+                         "default results/telemetry/legal). Use results/telemetry/pooled for pooled "
+                         "runs so traces don't land in the legal dir. A flag (not an env prefix) so "
+                         "single-line commands can't silently drop the redirect.")
     ap.add_argument("--workers", type=int, default=1, help="(reserved) per-example concurrency")
     ap.add_argument("--verdict", action="store_true", help="just print the matrix pivot and exit")
     args = ap.parse_args()
+
+    # Set the telemetry dir BEFORE any run import builds a trace path. telemetry._trace_dir()
+    # reads this env var lazily on each write, so setting it here routes every trace this run.
+    if args.telemetry_dir:
+        os.environ["CAPSTONERAG_TELEMETRY_DIR"] = args.telemetry_dir
 
     if args.verdict:
         print_verdict(args.out)

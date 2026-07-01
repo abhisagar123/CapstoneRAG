@@ -1,0 +1,32 @@
+# Pooled Exp 16: SAC chunker (summary-augmented) — a NEW chunking MECHANISM from PR #49.
+# SAC = slide a 500-CHAR window over each doc AND prepend the doc's first 150 chars
+# (a cheap "summary") to EVERY chunk, so each chunk carries document-level context.
+# Reuter et al. (NLLP 2025) found this halves document-retrieval mismatch on CUAD.
+# This is mechanistically DIFFERENT from our prior chunking levers:
+#   - PGC / semantic / chunk128 only change chunk BOUNDARIES (where to cut).
+#   - SAC keeps a base window but ADDS shared context (the prepended summary).
+# Target = CustomerSupport: long padded support docs where a chunk pulled from the
+# middle loses "what ticket/product is this?" — exactly what the prefix restores.
+# (GenKnowledge is low-priority: its docs are ~86 words ≈ one chunk, so the 150-char
+#  prefix ≈ the whole doc again — near-redundant. Run it only as a null control.)
+#
+# ONLY `chunker` differs from grounded_pooled_norerank.yaml (fixed -> sac); everything
+# else is the pooled baseline so this isolates the SAC mechanism. Kept under PLAIN
+# grounded (not grounded_complete) so it's a clean one-variable test; the +complete
+# stack is the conditional Tier-2 follow-up (Exp D) IF this is positive.
+# `sac` is a LIGHT chunker (registers on `import src`), so no special loader needed.
+domain: Legal
+
+chunker:   { type: sac, size: 500, overlap: 0, summary_chars: 150 }   # the one variable vs norerank (was fixed-512)
+embedder:  { type: minilm }
+index:     { type: faiss, corpus_mode: pooled }
+
+retriever: { type: dense, k: 20 }
+reranker:  { type: none, top_n: 5 }
+repacker:  { type: reverse }
+prompt:    { type: grounded }
+generator: { type: ollama, model: llama3.2:3b, max_new_tokens: 256 }   # cosmetic — overridden by --gen-model (default 3b)
+
+splitter:  { type: regex }
+
+seed: 42

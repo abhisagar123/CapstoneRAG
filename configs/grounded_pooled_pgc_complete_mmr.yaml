@@ -1,0 +1,43 @@
+# Pooled Exp 19: MMR diversity retriever on CustomerSupport's WINNER (pgc_complete @ 8B).
+# ONE change off grounded_pooled_pgc_complete.yaml: retriever dense -> mmr. Everything else
+# (pgc chunking, grounded_complete prompt, top_n 5, reverse repack, 8B) is held fixed, so this
+# isolates the RETRIEVER's selection objective: pure relevance (dense) vs relevance+diversity (MMR).
+#
+# WHY (the bet): the Tier-0 redundancy probe (scripts/probe_redundancy.py, 16 Jun) found
+# CustomerSupport's top-5 carries ~40% near-duplicate pairs (max pair-sim 0.836) — ~2/5 CustS
+# queries spend a retrieval slot on a near-copy of a chunk already selected. MMR re-orders the
+# k=20 dense candidates to penalise redundancy, so the top_n=5 we keep should cover MORE distinct
+# facts. Framed honestly: "trade a LITTLE relevance for coverage." EXPECT relevance to dip slightly
+# (diversity de-prioritises some on-topic-but-duplicate chunks); the WIN to watch is completeness
+# (broader coverage) and utilization (the generator has more distinct material to use). Adherence is
+# the guardrail — it must not crater the way SAC's prefix did (Exp 16b).
+#
+# lambda_mult 0.7 = lean relevance, gentle diversity (the conservative first point; lambda=1.0 would
+# be identical to dense). If 0.7 shows signal we can sweep 0.5 (more diversity); if it regresses
+# everything, MMR is rejected for pooled like top_n-widening was (Exp 17).
+#
+# WHY CustomerSupport ONLY: GenKnowledge's redundancy was ~6% (probe) -> no duplicates to remove,
+# MMR would only perturb a clean ranking. Settled-negative for GenK; do NOT add it here.
+#
+# config_id is built from stage TYPES: retriever type mmr != dense, so this does NOT collide with
+# grounded_pooled_pgc_complete.yaml's id. Still give it its OWN --out CSV and filter with the FULL
+# substring `grounded_pooled_pgc_complete_mmr.yaml` (the .yaml suffix makes the match EXACT, so it
+# won't also select pgc_complete.yaml / _topn10.yaml).
+#
+# RUN WITH --gen-model llama3.1:8b (build_grid overrides the YAML generator line; 8B is the
+# decision-relevant CustS winner and the generator with capacity to USE diverse chunks — Exp 11/12).
+domain: Legal
+
+chunker:   { type: pgc, paragraphs: 2, overlap: 1 }
+embedder:  { type: minilm }
+index:     { type: faiss, corpus_mode: pooled }
+
+retriever: { type: mmr, k: 20, lambda_mult: 0.7 }     # the ONE variable vs pgc_complete (was dense)
+reranker:  { type: none, top_n: 5 }
+repacker:  { type: reverse }
+prompt:    { type: grounded_complete }
+generator: { type: ollama, model: llama3.1:8b, max_new_tokens: 256 }   # cosmetic — pass --gen-model llama3.1:8b
+
+splitter:  { type: regex }
+
+seed: 42

@@ -1,0 +1,46 @@
+# Pooled Exp H (CustS arm): the FEW-SHOT prompt — teach thorough+grounded answering by
+# DEMONSTRATION rather than instruction, on the existing local 8B.
+# ONE change off grounded_pooled_pgc_complete.yaml (the CustomerSupport winner):
+#   prompt  grounded_complete -> grounded_fewshot
+# Everything else (pgc chunking, top_n 5, reverse repack, k=20, llama3.1:8b) held fixed = a
+# clean one-variable, prompt-only ablation vs the winner.
+#
+# WHY: every prompt we've tried TELLS the 8B what to do (an adjective/recipe). "Be thorough"
+# (the winner) is the ceiling so far; the procedural "consider each passage in turn"
+# (grounded_coverage, Exp G) BACKFIRED — it made the 8B refuse more and ground worse. The one
+# untried mode is SHOWING: grounded_fewshot keeps the winner's instruction VERBATIM and
+# prepends two short SYNTHETIC worked examples (not from the test set — no leakage):
+#   - Example 1 pulls a fact from every passage into one thorough answer (targets completeness).
+#   - Example 2 is unanswerable -> its demo answer is the refusal string (demonstrates the
+#     adherence guardrail, the deliberate counter to Exp G's coverage-vs-grounding failure).
+# Small models imitate a worked example better than they obey an adjective, so this is a
+# genuinely DIFFERENT lever, not a reworded instruction.
+#   - If completeness/utilization rise WHILE adherence holds -> the wall is partly PROMPTABLE
+#     after all (and few-shot is the key).
+#   - If they don't move (or adherence falls) -> with Exp 4 / 16b / G this brackets the prompt
+#     space: 5 instruction variants + 1 demonstration variant all hit the same ceiling ->
+#     "prompt lever exhausted on CustS @ 8B" becomes DEFENSIBLE -> the wall is CAPACITY -> 70B.
+#
+# MEASUREMENT-CLEAN: the demos live in the INPUT; the model still emits ONE answer after the
+# final "Answer:" and the judge scores only that. (Contrast the rejected two-step "list facts
+# then answer" prompt, whose copied-context preamble would fake-inflate util/completeness.)
+#
+# WHY a SEPARATE config file + own --out CSV: telemetry JSONL is keyed on the config FILENAME
+# and is APPEND-ONLY; reusing pgc_complete.yaml would append onto the winner's 100 llama-8B
+# records (Exp 18) and corrupt them. Run ALONE into its own --out CSV; filter with the FULL
+# substring `grounded_pooled_pgc_fewshot.yaml`.
+domain: Legal
+
+chunker:   { type: pgc, paragraphs: 2, overlap: 1 }
+embedder:  { type: minilm }
+index:     { type: faiss, corpus_mode: pooled }
+
+retriever: { type: dense, k: 20 }
+reranker:  { type: none, top_n: 5 }
+repacker:  { type: reverse }
+prompt:    { type: grounded_fewshot }                 # vs winner grounded_complete (ONLY change)
+generator: { type: ollama, model: llama3.1:8b, max_new_tokens: 256 }   # overridden by --gen-model
+
+splitter:  { type: regex }
+
+seed: 42

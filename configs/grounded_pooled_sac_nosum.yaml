@@ -1,0 +1,31 @@
+# Pooled Exp 16b: SAC PREFIX-ISOLATION control — summary_chars 0 (prefix OFF) at the
+# SAME 500-char geometry as Exp 16 (grounded_pooled_sac.yaml, prefix ON / summary_chars 150).
+# Purpose: Exp 16 confounded the summary-prefix MECHANISM with a ~6x chunk-size cut (our
+# `fixed` chunker is WORD-based 512w; SAC is CHAR-based 500c ≈ 85w). This config holds the
+# geometry fixed and removes ONLY the prefix, so:
+#     prefix effect = Exp16(150)  - Exp16b(0)      [same geometry, only prefix differs]
+#     size  effect  = Exp16b(0)   - fixed-512 base [500-char windows vs 512-word, no prefix]
+# Together they decompose the bundled Exp16 - baseline delta into its two causes.
+#
+# With summary_chars=0 the SACChunker's prefix is "" -> this is a pure 500-char sliding
+# window, no summary. EVERYTHING else identical to grounded_pooled_sac.yaml.
+#
+# ⚠️ config_id is built from stage TYPES (chunker.type "sac" in BOTH), so this and
+# grounded_pooled_sac.yaml share a config_id and would COLLIDE in one grid. Run it into its
+# OWN --out CSV and filter with the FULL substring `grounded_pooled_sac_nosum` (NOT
+# `grounded_pooled_sac`, which would also match Exp 16's config and trip the collision guard).
+domain: Legal
+
+chunker:   { type: sac, size: 500, overlap: 0, summary_chars: 0 }    # prefix OFF (Exp 16 had 150)
+embedder:  { type: minilm }
+index:     { type: faiss, corpus_mode: pooled }
+
+retriever: { type: dense, k: 20 }
+reranker:  { type: none, top_n: 5 }
+repacker:  { type: reverse }
+prompt:    { type: grounded }
+generator: { type: ollama, model: llama3.2:3b, max_new_tokens: 256 }   # cosmetic — overridden by --gen-model (default 3b)
+
+splitter:  { type: regex }
+
+seed: 42
